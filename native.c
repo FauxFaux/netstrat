@@ -2,6 +2,7 @@
 // https://kristrev.github.io/2013/07/26/passive-monitoring-of-sockets-on-linux
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -13,7 +14,7 @@
 #include <linux/inet_diag.h>
 #include <pwd.h>
 
-static int send_diag_msg(int sockfd, int family, int proto) {
+ssize_t send_diag_msg(int sockfd, int family, int proto) {
 	//To request information about unix sockets, this would be replaced with
 	//unix_diag_req, packet-sockets packet_diag_req.
 
@@ -181,4 +182,24 @@ uint32_t *inet_diag_sockid_src(struct inet_diag_sockid *sockid) {
 
 uint32_t *inet_diag_sockid_dst(struct inet_diag_sockid *sockid) {
     return sockid->idiag_dst;
+}
+
+bool nlmsg_ok(struct nlmsghdr *nlh, size_t numbytes) {
+    return NLMSG_OK(nlh, numbytes);
+}
+
+struct nlmsghdr *nlmsg_next(struct nlmsghdr *nlh, size_t *numbytes) {
+    return NLMSG_NEXT(nlh, *numbytes);
+}
+
+struct nlmsghdr *nlmsg_data(struct nlmsghdr *nlh) {
+    return NLMSG_DATA(nlh);
+}
+
+uint16_t nlmsg_type(struct nlmsghdr *nlh) {
+    return nlh->nlmsg_type;
+}
+
+uint32_t nlmsg_len(struct nlmsghdr *nlh) {
+    return nlh->nlmsg_len;
 }
