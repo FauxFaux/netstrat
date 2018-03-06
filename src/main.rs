@@ -1,31 +1,28 @@
 #[macro_use]
 extern crate error_chain;
-extern crate pnetlink;
-extern crate pnet_macros_support;
-
-use pnetlink::socket;
-use pnetlink::packet::netlink;
-use pnet_macros_support::packet::Packet;
-
-mod errors;
+extern crate libc;
 
 use errors::*;
 
-const SOCK_DIAG_BY_FAMILY: u16 = 20;
+mod errors;
+mod raw;
 
-fn send_all(nl: &mut socket::NetlinkSocket, buf: &[u8]) -> Result<()> {
-    ensure!(buf.len() == nl.send(buf)?, "short send");
-    Ok(())
+extern fn callback(msg: raw::InetDiagMsg) {
+    let id = unsafe { raw::inet_diag_msg_id(msg) };
+    let family = unsafe { raw::inet_diag_msg_family(msg) };
+    println!("src: {:?}:{}, dst: {:?}:{}",
+             unsafe { raw::to_address(family, raw::inet_diag_sockid_src(id)) },
+             unsafe { raw::inet_diag_sockid_sport(id) },
+             unsafe { raw::to_address(family, raw::inet_diag_sockid_dst(id)) },
+             unsafe { raw::inet_diag_sockid_dport(id) },
+    );
 }
 
 fn run() -> Result<()> {
-    let mut nl = socket::NetlinkSocket::bind(socket::NetlinkProtocol::Inet_diag, 0)?;
-    let pkt = netlink::NetlinkRequestBuilder::new(SOCK_DIAG_BY_FAMILY, netlink::NetlinkMsgFlags::empty())
-        .
-        .build();
-    send_all(&mut nl, pkt.packet())?;
+    unsafe {
+        raw::list_sockets(callback);
+    }
     Ok(())
 }
 
 quick_main!(run);
-'
