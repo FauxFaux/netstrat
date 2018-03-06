@@ -1,0 +1,11 @@
+[package]
+name = "netstrat"
+version = "0.1.0"
+authors = ["Chris West (Faux) <git@goeswhere.com>"]
+
+[dependencies]
+error-chain = "0.11.0"
+pnet_macros_support = "0.20.0"
+[dependencies.pnetlink]
+git = "https://github.com/polachok/pnetlink"
+rev = "f5d490361f03ec0239e6b3376d89f22e32d8fe76"
