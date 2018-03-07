@@ -5,7 +5,6 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::os::unix::io::RawFd;
-use std::slice;
 
 use libc;
 use libc::c_void;
@@ -24,31 +23,17 @@ use nix::sys::socket::SockProtocol;
 
 use errors::*;
 
-pub type InetDiagMsg = *mut c_void;
-pub type InetDiagSockId = *mut c_void;
-pub type NlMsgHeader = *mut c_void;
+pub type NlMsgHeader = c_void;
 
 extern "C" {
-    fn list_sockets(cb: extern "C" fn(InetDiagMsg)) -> i32;
-
     fn send_diag_msg(fd: c_int, family: c_int, proto: c_int) -> ssize_t;
 
-    fn nlmsg_ok(nlh: NlMsgHeader, numbytes: size_t) -> bool;
-    fn nlmsg_next(nlh: NlMsgHeader, numbytes: &mut size_t) -> NlMsgHeader;
-    fn nlmsg_data(nlh: NlMsgHeader) -> *mut c_void;
+    fn nlmsg_ok(nlh: *const NlMsgHeader, numbytes: size_t) -> bool;
+    fn nlmsg_next(nlh: *const NlMsgHeader, numbytes: &mut size_t) -> *const NlMsgHeader;
+    fn nlmsg_data(nlh: *const NlMsgHeader) -> *mut c_void;
 
-    fn nlmsg_type(nlh: NlMsgHeader) -> u16;
-    fn nlmsg_len(nlh: NlMsgHeader) -> u32;
-
-    pub fn inet_diag_msg_family(msg: InetDiagMsg) -> u8;
-
-    pub fn inet_diag_sockid_sport(sockid: InetDiagSockId) -> u16;
-    pub fn inet_diag_sockid_dport(sockid: InetDiagSockId) -> u16;
-
-    pub fn inet_diag_sockid_src(sockid: InetDiagSockId) -> *mut u32;
-    pub fn inet_diag_sockid_dst(sockid: InetDiagSockId) -> *mut u32;
-
-    pub fn inet_diag_msg_id(diag_msg: InetDiagMsg) -> InetDiagSockId;
+    fn nlmsg_type(nlh: *const NlMsgHeader) -> u16;
+    fn nlmsg_len(nlh: *const NlMsgHeader) -> u32;
 }
 
 pub struct NetlinkDiag {
@@ -95,14 +80,13 @@ pub struct Recv {
     fd: RawFd,
     buf: [u8; 8 * 1024],
     valid_bytes: usize,
-    ptr: NlMsgHeader,
+    ptr: *const NlMsgHeader,
 }
 
 impl Recv {
     fn recv(&mut self) -> Result<()> {
         self.valid_bytes = socket::recv(self.fd, &mut self.buf, socket::MsgFlags::empty())?;
         self.ptr = unsafe { mem::transmute(&mut self.buf) };
-        println!("recv of {}", self.valid_bytes);
         Ok(())
     }
 
@@ -115,7 +99,7 @@ impl Recv {
     }
 
     /// unsafe: return value is potentially only valid until next call
-    pub unsafe fn next(&mut self) -> Result<Option<InetDiagMsg>> {
+    pub unsafe fn next(&mut self) -> Result<Option<&InetDiagMsg>> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -132,7 +116,7 @@ impl Recv {
                 NLMSG_INET_DIAG => {
                     let ret = nlmsg_data(self.ptr);
                     self.advance();
-                    return Ok(Some(ret));
+                    return Ok(Some(&(*(ret as *const InetDiagMsg))));
                 }
 
                 other => bail!("unsupported message type: {}", other),
@@ -149,17 +133,37 @@ impl Drop for NetlinkDiag {
     }
 }
 
-pub unsafe fn to_address(family: u8, data: *const u32) -> Result<IpAddr> {
+pub fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
     Ok(match family as c_int {
-        AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(*data))),
+        AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(data[0]))),
         AF_INET6 => {
-            let mut buf = [0u8; 16];
-            buf.copy_from_slice(slice::from_raw_parts(
-                mem::transmute::<*const u32, *const u8>(data),
-                16,
-            ));
+            let mut buf = unsafe { mem::transmute::<[u32; 4], [u8; 16]>(*data) };
             IpAddr::V6(Ipv6Addr::from(buf))
         }
         other => bail!("unrecognised address family: {}", other),
     })
+}
+
+#[repr(C)]
+pub struct InetDiagSockId {
+    pub sport_be: u16,
+    pub dport_be: u16,
+    pub src_be: [u32; 4],
+    pub dst_be: [u32; 4],
+    pub iface: u32,
+    pub cookie: [u32; 4],
+}
+
+#[repr(C)]
+pub struct InetDiagMsg {
+    pub family: u8,
+    pub state: u8,
+    pub timer: u8,
+    pub retrans: u8,
+    pub id: InetDiagSockId,
+    pub expires: u32,
+    pub rqueue: u32,
+    pub wqueue: u32,
+    pub uid: u32,
+    pub inode: u32,
 }
