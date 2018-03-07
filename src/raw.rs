@@ -107,9 +107,6 @@ impl Recv {
     }
 
     fn ok(&mut self) -> bool {
-        println!("ok? {:?} {} {}", self.ptr, self.valid_bytes, unsafe {
-            nlmsg_len(self.ptr)
-        });
         unsafe { nlmsg_ok(self.ptr, self.valid_bytes) }
     }
 
@@ -117,7 +114,8 @@ impl Recv {
         self.ptr = unsafe { nlmsg_next(self.ptr, &mut self.valid_bytes) };
     }
 
-    pub fn next(&mut self) -> Result<Option<InetDiagMsg>> {
+    /// unsafe: return value is potentially only valid until next call
+    pub unsafe fn next(&mut self) -> Result<Option<InetDiagMsg>> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -126,14 +124,15 @@ impl Recv {
 
             const NLMSG_INET_DIAG: c_int = 20;
 
-            match unsafe { nlmsg_type(self.ptr) } as c_int {
+            match nlmsg_type(self.ptr) as c_int {
                 libc::NLMSG_DONE => return Ok(None),
                 libc::NLMSG_ERROR => bail!("netlink error"),
                 libc::NLMSG_OVERRUN => bail!("netlink overrun"),
                 libc::NLMSG_NOOP => self.advance(),
                 NLMSG_INET_DIAG => {
+                    let ret = nlmsg_data(self.ptr);
                     self.advance();
-                    return Ok(Some(unsafe { nlmsg_data(self.ptr) }));
+                    return Ok(Some(ret));
                 }
 
                 other => bail!("unsupported message type: {}", other),
