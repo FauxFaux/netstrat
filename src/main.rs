@@ -21,9 +21,14 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
     }
 }
 
-fn dump_tcp(msg: &raw::InetDiagMsg) -> Result<()> {
+fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
     println!(
-        "tcp{} src: {}, dst: {}, uid: {}",
+        "{}{} src: {}, dst: {}, uid: {}",
+        match proto {
+            SockProtocol::Tcp => "tcp",
+            SockProtocol::Udp => "udp",
+            _ => unimplemented!()
+        },
         match msg.family() {
             Some(AddressFamily::Inet) => "4".to_string(),
             Some(AddressFamily::Inet6) => "6".to_string(),
@@ -39,11 +44,13 @@ fn dump_tcp(msg: &raw::InetDiagMsg) -> Result<()> {
 
 fn run() -> Result<()> {
     let mut socket = raw::NetlinkDiag::new()?;
-    for family in &[AddressFamily::Inet, AddressFamily::Inet6] {
-        socket.ask_ip(*family, SockProtocol::Tcp)?;
-        let mut recv = socket.receive_until_done()?;
-        while let Some(ptr) = unsafe { recv.next()? } {
-            dump_tcp(ptr)?;
+    for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
+        for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
+            socket.ask_ip(family, proto)?;
+            let mut recv = socket.receive_until_done()?;
+            while let Some(ptr) = unsafe { recv.next()? } {
+                dump_proto(proto, ptr)?;
+            }
         }
     }
     Ok(())
