@@ -153,7 +153,7 @@ pub struct InetDiagSockId {
     src_be: [u32; 4],
     dst_be: [u32; 4],
     pub iface: u32,
-    pub cookie: [u32; 4],
+    pub cookie: [u32; 2],
 }
 
 #[repr(C)]

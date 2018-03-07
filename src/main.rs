@@ -23,7 +23,7 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
 
 fn dump_tcp(msg: &raw::InetDiagMsg) -> Result<()> {
     println!(
-        "tcp{} src: {}, dst: {}",
+        "tcp{} src: {}, dst: {}, uid: {}",
         match msg.family() {
             Some(AddressFamily::Inet) => "4".to_string(),
             Some(AddressFamily::Inet6) => "6".to_string(),
@@ -31,6 +31,7 @@ fn dump_tcp(msg: &raw::InetDiagMsg) -> Result<()> {
         },
         render_address(&msg.src_addr()?, msg.src_port()),
         render_address(&msg.dst_addr()?, msg.dst_port()),
+        msg.uid
     );
 
     Ok(())
