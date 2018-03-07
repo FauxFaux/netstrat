@@ -1,7 +1,10 @@
+extern crate cast;
 #[macro_use]
 extern crate error_chain;
 extern crate libc;
 extern crate nix;
+
+use std::net::IpAddr;
 
 use nix::sys::socket::AddressFamily;
 use nix::sys::socket::SockProtocol;
@@ -11,23 +14,36 @@ mod raw;
 
 use errors::*;
 
-fn callback(msg: &raw::InetDiagMsg) {
-    let id = &msg.id;
+fn render_address(addr: &IpAddr, port: u16) -> String {
+    match *addr {
+        IpAddr::V4(addr) => format!("{}:{}", addr, port),
+        IpAddr::V6(addr) => format!("[{}]:{}", addr, port),
+    }
+}
+
+fn dump_tcp(msg: &raw::InetDiagMsg) -> Result<()> {
     println!(
-        "src: {:?}:{}, dst: {:?}:{}",
-        raw::to_address(msg.family, &id.src_be),
-        u16::from_be(id.sport_be),
-        raw::to_address(msg.family, &id.dst_be),
-        u16::from_be(id.dport_be),
+        "tcp{} src: {}, dst: {}",
+        match msg.family() {
+            Some(AddressFamily::Inet) => "4".to_string(),
+            Some(AddressFamily::Inet6) => "6".to_string(),
+            other => format!("?? {:?}", other),
+        },
+        render_address(&msg.src_addr()?, msg.src_port()),
+        render_address(&msg.dst_addr()?, msg.dst_port()),
     );
+
+    Ok(())
 }
 
 fn run() -> Result<()> {
     let mut socket = raw::NetlinkDiag::new()?;
-    socket.ask_ip(AddressFamily::Inet, SockProtocol::Tcp)?;
-    let mut recv = socket.receive_until_done()?;
-    while let Some(ptr) = unsafe { recv.next()? } {
-        callback(ptr)
+    for family in &[AddressFamily::Inet, AddressFamily::Inet6] {
+        socket.ask_ip(*family, SockProtocol::Tcp)?;
+        let mut recv = socket.receive_until_done()?;
+        while let Some(ptr) = unsafe { recv.next()? } {
+            dump_tcp(ptr)?;
+        }
     }
     Ok(())
 }

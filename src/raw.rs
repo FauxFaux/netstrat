@@ -6,6 +6,8 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::os::unix::io::RawFd;
 
+use cast::i32;
+
 use libc;
 use libc::c_void;
 use libc::c_int;
@@ -133,7 +135,7 @@ impl Drop for NetlinkDiag {
     }
 }
 
-pub fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
+fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
     Ok(match family as c_int {
         AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(data[0]))),
         AF_INET6 => {
@@ -146,10 +148,10 @@ pub fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
 
 #[repr(C)]
 pub struct InetDiagSockId {
-    pub sport_be: u16,
-    pub dport_be: u16,
-    pub src_be: [u32; 4],
-    pub dst_be: [u32; 4],
+    sport_be: u16,
+    dport_be: u16,
+    src_be: [u32; 4],
+    dst_be: [u32; 4],
     pub iface: u32,
     pub cookie: [u32; 4],
 }
@@ -166,4 +168,26 @@ pub struct InetDiagMsg {
     pub wqueue: u32,
     pub uid: u32,
     pub inode: u32,
+}
+
+impl InetDiagMsg {
+    pub fn family(&self) -> Option<AddressFamily> {
+        AddressFamily::from_i32(i32(self.family))
+    }
+
+    pub fn src_port(&self) -> u16 {
+        u16::from_be(self.id.sport_be)
+    }
+
+    pub fn dst_port(&self) -> u16 {
+        u16::from_be(self.id.dport_be)
+    }
+
+    pub fn src_addr(&self) -> Result<IpAddr> {
+        to_address(self.family, &self.id.src_be)
+    }
+
+    pub fn dst_addr(&self) -> Result<IpAddr> {
+        to_address(self.family, &self.id.dst_be)
+    }
 }
