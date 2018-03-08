@@ -34,8 +34,16 @@ fn parse_u16(input: &str) -> StdResult<u16, ParseIntError> {
     input.parse()
 }
 
+fn parse_quad(input: &str) -> StdResult<u16, ParseIntError> {
+    u16::from_str_radix(input, 16)
+}
+
 fn digit(input: char) -> bool {
     input.is_ascii_digit()
+}
+
+fn hex_digit(input: char) -> bool {
+    input.is_ascii_hexdigit()
 }
 
 named!(port<&str, u16>, preceded!(complete!(tag!(":")), alt_complete!(
@@ -44,6 +52,8 @@ named!(port<&str, u16>, preceded!(complete!(tag!(":")), alt_complete!(
 )));
 
 named!(octet<&str, u8>, map_res!(take_while1_s!(digit), parse_u8));
+
+named!(quad<&str, u16>, map_res!(take_while1_s!(hex_digit), parse_quad));
 
 named!(mask<&str, u8>, preceded!(complete!(tag!("/")), octet));
 
@@ -58,9 +68,24 @@ named!(v4addr<&str, IpAddr>, do_parse!(
     ( Ipv4Addr::new(a, b, c, d).into() )
 ));
 
-named!(v6addr<&str, IpAddr>, do_parse!(
-    tag!("na") >>
-    ( unimplemented!() )
+named!(v6addr_full<&str, IpAddr>, do_parse!(
+    a: quad >>
+    b: count_fixed!(
+        u16,
+        preceded!(tag!(":"), quad),
+        7
+    ) >>
+    ( Ipv6Addr::new(a, b[0], b[1], b[2], b[3], b[4], b[5], b[6]).into() )
+));
+
+named!(v6addr_any<&str, IpAddr>, do_parse!(
+    tag!("::") >>
+    ( Ipv6Addr::unspecified().into() )
+));
+
+named!(v6addr<&str, IpAddr>, alt_complete!(
+    v6addr_any |
+    v6addr_full
 ));
 
 named!(addr<&str, IpAddr>, alt_complete!(
@@ -122,6 +147,17 @@ mod tests {
         assert_eq!(
             IResult::Done("", "0.0.0.0".parse::<Ipv4Addr>().unwrap().into()),
             addr("0.0.0.0")
+        );
+        assert_eq!(
+            IResult::Done("", "::".parse::<Ipv6Addr>().unwrap().into()),
+            addr("[::]")
+        );
+        assert_eq!(
+            IResult::Done(
+                "",
+                "2001:db8:0:0:1:0:0:1".parse::<Ipv6Addr>().unwrap().into()
+            ),
+            addr("[2001:db8:0:0:1:0:0:1]")
         );
         assert_eq!(
             IResult::Done("", AMP::new_str_v4(Some("0.0.0.0"), None, None)),

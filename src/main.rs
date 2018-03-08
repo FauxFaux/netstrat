@@ -1,3 +1,6 @@
+// Trivial helper methods:
+#![feature(ip_constructors)]
+
 extern crate cast;
 #[macro_use]
 extern crate error_chain;
