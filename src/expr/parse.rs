@@ -38,14 +38,14 @@ fn digit(input: char) -> bool {
     input.is_ascii_digit()
 }
 
-named!(port<&str, u16>, preceded!(tag!(":"), alt_complete!(
+named!(port<&str, u16>, preceded!(complete!(tag!(":")), alt_complete!(
     map_res!(take_while1_s!(digit), parse_u16) |
     tag!("*") => { |_| 0 }
 )));
 
 named!(octet<&str, u8>, map_res!(take_while1_s!(digit), parse_u8));
 
-named!(mask<&str, u8>, preceded!(tag!("/"), octet));
+named!(mask<&str, u8>, preceded!(complete!(tag!("/")), octet));
 
 named!(v4addr<&str, IpAddr>, do_parse!(
     a: octet >>
@@ -119,6 +119,10 @@ mod tests {
         assert_eq!(IResult::Done("", 2), port(":2"));
         assert_eq!(IResult::Done("", 4), mask("/4"));
         assert_eq!(IResult::Done("", 12), mask("/12"));
+        assert_eq!(
+            IResult::Done("", "0.0.0.0".parse::<Ipv4Addr>().unwrap().into()),
+            addr("0.0.0.0")
+        );
         assert_eq!(
             IResult::Done("", AMP::new_str_v4(Some("0.0.0.0"), None, None)),
             amp_addr_opt_opt("0.0.0.0")
