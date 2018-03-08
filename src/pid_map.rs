@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
 use std::fmt;
+use std::fs;
 use std::io::Read;
 use std::path::Path;
 

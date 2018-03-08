@@ -18,11 +18,11 @@ use libc::NLM_F_DUMP;
 use libc::NLM_F_REQUEST;
 
 use nix;
-use nix::sys::uio::IoVec;
 use nix::sys::socket;
 use nix::sys::socket::AddressFamily;
-use nix::sys::socket::SockType;
 use nix::sys::socket::SockProtocol;
+use nix::sys::socket::SockType;
+use nix::sys::uio::IoVec;
 
 use errors::*;
 

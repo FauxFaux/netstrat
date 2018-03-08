@@ -3,6 +3,8 @@ extern crate cast;
 extern crate error_chain;
 extern crate libc;
 extern crate nix;
+#[macro_use]
+extern crate nom;
 
 use std::io;
 use std::io::Write;
@@ -12,6 +14,7 @@ use nix::sys::socket::AddressFamily;
 use nix::sys::socket::SockProtocol;
 
 mod errors;
+mod expr;
 mod pid_map;
 mod raw;
 

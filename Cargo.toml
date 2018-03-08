@@ -11,3 +11,7 @@ nix = "0.10"
 
 [profile.release]
 lto = true
+
+[dependencies.nom]
+version = "3"
+features = ["nightly", "verbose-errors"]
