@@ -1,5 +1,3 @@
-#[link(name = "netstrat-native", kind = "static")]
-
 use std::mem;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
@@ -7,16 +5,20 @@ use std::net::Ipv6Addr;
 use std::os::unix::io::RawFd;
 
 use cast::i32;
+use cast::u16;
+use cast::u32;
 use cast::usize;
 
 use libc;
 use libc::c_int;
-use libc::ssize_t;
 
 use libc::AF_INET;
 use libc::AF_INET6;
+use libc::NLM_F_DUMP;
+use libc::NLM_F_REQUEST;
 
 use nix;
+use nix::sys::uio::IoVec;
 use nix::sys::socket;
 use nix::sys::socket::AddressFamily;
 use nix::sys::socket::SockType;
@@ -24,9 +26,7 @@ use nix::sys::socket::SockProtocol;
 
 use errors::*;
 
-extern "C" {
-    fn send_diag_msg(fd: c_int, family: c_int, proto: c_int) -> ssize_t;
-}
+const SOCK_DIAG_BY_FAMILY: u16 = 20;
 
 pub struct NetlinkDiag {
     fd: RawFd,
@@ -47,10 +47,40 @@ impl NetlinkDiag {
         })
     }
 
-    pub fn ask_ip(&mut self, family: AddressFamily, proto: SockProtocol) -> Result<()> {
-        nix::errno::Errno::result(unsafe {
-            send_diag_msg(self.fd, family as c_int, proto as c_int)
-        })?;
+    pub fn ask_ip(&mut self, family: AddressFamily, protocol: SockProtocol) -> Result<()> {
+        const INET_DIAG_INFO: u8 = 2;
+
+        let header = NetlinkMessageHeader {
+            len: u32(NETLINK_HEADER_LEN + mem::size_of::<InetDiagReqV2>()).unwrap(),
+            flags: u16(NLM_F_REQUEST | NLM_F_DUMP).unwrap(),
+            message_type: SOCK_DIAG_BY_FAMILY,
+            ..NetlinkMessageHeader::default()
+        };
+
+        let header: [u8; mem::size_of::<NetlinkMessageHeader>()] =
+            unsafe { mem::transmute(header) };
+
+        let conn_req = InetDiagReqV2 {
+            family: family as u8,
+            protocol: protocol as u8,
+            states: !0,
+            ext: (1 << (INET_DIAG_INFO - 1)),
+            ..InetDiagReqV2::default()
+        };
+
+        let conn_req: [u8; mem::size_of::<InetDiagReqV2>()] = unsafe { mem::transmute(conn_req) };
+
+        let empty_netlink_address = socket::SockAddr::Netlink(socket::NetlinkAddr::new(0, 0));
+
+        let vecs = [IoVec::from_slice(&header), IoVec::from_slice(&conn_req)];
+
+        socket::sendmsg(
+            self.fd,
+            &vecs,
+            &[],
+            socket::MsgFlags::empty(),
+            Some(&empty_netlink_address),
+        )?;
         Ok(())
     }
 
@@ -96,7 +126,9 @@ impl Recv {
 
     #[inline]
     fn remaining(&self) -> usize {
-        self.valid_bytes.checked_sub(self.ptr).expect("can't be past end")
+        self.valid_bytes
+            .checked_sub(self.ptr)
+            .expect("can't be past end")
     }
 
     #[inline]
@@ -124,8 +156,10 @@ impl Recv {
                 libc::NLMSG_OVERRUN => bail!("netlink overrun"),
                 libc::NLMSG_NOOP => self.advance(),
                 NLMSG_INET_DIAG => {
-                    ensure!(self.remaining() >= NETLINK_HEADER_LEN + mem::size_of::<InetDiagMsg>(),
-                        "not enough space in buf for an InetDiagMsg");
+                    ensure!(
+                        self.remaining() >= NETLINK_HEADER_LEN + mem::size_of::<InetDiagMsg>(),
+                        "not enough space in buf for an InetDiagMsg"
+                    );
                     let data_starts_at = self.ptr + NETLINK_HEADER_LEN;
                     let val = unsafe { &*(self.buf[data_starts_at..].as_ptr() as *const _) };
                     self.advance();
@@ -158,7 +192,7 @@ fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct NetlinkMessageHeader {
     /// Message length, including header.
     pub len: u32,
@@ -169,7 +203,18 @@ pub struct NetlinkMessageHeader {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug)]
+pub struct InetDiagReqV2 {
+    family: u8,
+    protocol: u8,
+    ext: u8,
+    _pad: u8,
+    states: u32,
+    id: InetDiagSockId,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct InetDiagSockId {
     sport_be: u16,
     dport_be: u16,
@@ -180,7 +225,7 @@ pub struct InetDiagSockId {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct InetDiagMsg {
     pub family: u8,
     pub state: u8,
