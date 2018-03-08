@@ -84,7 +84,7 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, HashMap<Inode, InodeInfo>)
                 let end = buf.iter()
                     .skip(start)
                     .position(|&c| b')' == c)
-                    .ok_or("invalid stat: (")?;
+                    .ok_or("invalid stat: )")?;
                 let mut name_buf = [0u8; 16];
                 for i in start..(start + end) {
                     name_buf[i - start] = buf[i];
