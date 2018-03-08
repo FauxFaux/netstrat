@@ -76,23 +76,3 @@ static void parse_diag_msg(struct inet_diag_msg *diag_msg, int rtalen, void (*on
         attr = RTA_NEXT(attr, rtalen);
     }
 }
-
-bool nlmsg_ok(struct nlmsghdr *nlh, size_t numbytes) {
-    return NLMSG_OK(nlh, numbytes);
-}
-
-struct nlmsghdr *nlmsg_next(struct nlmsghdr *nlh, size_t *numbytes) {
-    return NLMSG_NEXT(nlh, *numbytes);
-}
-
-struct nlmsghdr *nlmsg_data(struct nlmsghdr *nlh) {
-    return NLMSG_DATA(nlh);
-}
-
-uint16_t nlmsg_type(struct nlmsghdr *nlh) {
-    return nlh->nlmsg_type;
-}
-
-uint32_t nlmsg_len(struct nlmsghdr *nlh) {
-    return nlh->nlmsg_len;
-}

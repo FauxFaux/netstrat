@@ -27,7 +27,6 @@ fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
-            _ => unimplemented!()
         },
         match msg.family() {
             Some(AddressFamily::Inet) => "4".to_string(),
@@ -48,7 +47,7 @@ fn run() -> Result<()> {
         for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
-            while let Some(ptr) = unsafe { recv.next()? } {
+            while let Some(ptr) = recv.next()? {
                 dump_proto(proto, ptr)?;
             }
         }

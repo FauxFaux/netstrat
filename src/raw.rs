@@ -7,11 +7,10 @@ use std::net::Ipv6Addr;
 use std::os::unix::io::RawFd;
 
 use cast::i32;
+use cast::usize;
 
 use libc;
-use libc::c_void;
 use libc::c_int;
-use libc::size_t;
 use libc::ssize_t;
 
 use libc::AF_INET;
@@ -25,17 +24,8 @@ use nix::sys::socket::SockProtocol;
 
 use errors::*;
 
-pub type NlMsgHeader = c_void;
-
 extern "C" {
     fn send_diag_msg(fd: c_int, family: c_int, proto: c_int) -> ssize_t;
-
-    fn nlmsg_ok(nlh: *const NlMsgHeader, numbytes: size_t) -> bool;
-    fn nlmsg_next(nlh: *const NlMsgHeader, numbytes: &mut size_t) -> *const NlMsgHeader;
-    fn nlmsg_data(nlh: *const NlMsgHeader) -> *mut c_void;
-
-    fn nlmsg_type(nlh: *const NlMsgHeader) -> u16;
-    fn nlmsg_len(nlh: *const NlMsgHeader) -> u32;
 }
 
 pub struct NetlinkDiag {
@@ -69,7 +59,7 @@ impl NetlinkDiag {
             fd: self.fd,
             buf: [0u8; 8 * 1024],
             valid_bytes: 0,
-            ptr: 0 as *mut c_void,
+            ptr: 0,
         };
 
         ret.recv()?;
@@ -82,26 +72,44 @@ pub struct Recv {
     fd: RawFd,
     buf: [u8; 8 * 1024],
     valid_bytes: usize,
-    ptr: *const NlMsgHeader,
+    ptr: usize,
 }
 
 impl Recv {
     fn recv(&mut self) -> Result<()> {
         self.valid_bytes = socket::recv(self.fd, &mut self.buf, socket::MsgFlags::empty())?;
-        self.ptr = unsafe { mem::transmute(&mut self.buf) };
+        self.ptr = 0;
         Ok(())
     }
 
-    fn ok(&mut self) -> bool {
-        unsafe { nlmsg_ok(self.ptr, self.valid_bytes) }
+    fn ok(&self) -> bool {
+        let remaining = self.remaining();
+
+        if remaining < NETLINK_HEADER_LEN {
+            return false;
+        }
+        let next_len = usize(self.header().len);
+
+        // TODO: off-by-one?
+        next_len >= NETLINK_HEADER_LEN && next_len <= remaining
+    }
+
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.valid_bytes.checked_sub(self.ptr).expect("can't be past end")
+    }
+
+    #[inline]
+    fn header(&self) -> &NetlinkMessageHeader {
+        assert!(self.remaining() >= NETLINK_HEADER_LEN);
+        unsafe { &*(self.buf[self.ptr..].as_ptr() as *const _) }
     }
 
     fn advance(&mut self) {
-        self.ptr = unsafe { nlmsg_next(self.ptr, &mut self.valid_bytes) };
+        self.ptr += netlink_next_message_starts_at(self.header());
     }
 
-    /// unsafe: return value is potentially only valid until next call
-    pub unsafe fn next(&mut self) -> Result<Option<&InetDiagMsg>> {
+    pub fn next(&mut self) -> Result<Option<&InetDiagMsg>> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -110,15 +118,18 @@ impl Recv {
 
             const NLMSG_INET_DIAG: c_int = 20;
 
-            match nlmsg_type(self.ptr) as c_int {
+            match self.header().message_type as c_int {
                 libc::NLMSG_DONE => return Ok(None),
                 libc::NLMSG_ERROR => bail!("netlink error"),
                 libc::NLMSG_OVERRUN => bail!("netlink overrun"),
                 libc::NLMSG_NOOP => self.advance(),
                 NLMSG_INET_DIAG => {
-                    let ret = nlmsg_data(self.ptr);
+                    ensure!(self.remaining() >= NETLINK_HEADER_LEN + mem::size_of::<InetDiagMsg>(),
+                        "not enough space in buf for an InetDiagMsg");
+                    let data_starts_at = self.ptr + NETLINK_HEADER_LEN;
+                    let val = unsafe { &*(self.buf[data_starts_at..].as_ptr() as *const _) };
                     self.advance();
-                    return Ok(Some(&(*(ret as *const InetDiagMsg))));
+                    return Ok(Some(val));
                 }
 
                 other => bail!("unsupported message type: {}", other),
@@ -147,6 +158,18 @@ fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
+pub struct NetlinkMessageHeader {
+    /// Message length, including header.
+    pub len: u32,
+    pub message_type: u16,
+    pub flags: u16,
+    pub seq: u32,
+    pub pid: u32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
 pub struct InetDiagSockId {
     sport_be: u16,
     dport_be: u16,
@@ -157,6 +180,7 @@ pub struct InetDiagSockId {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct InetDiagMsg {
     pub family: u8,
     pub state: u8,
@@ -190,4 +214,18 @@ impl InetDiagMsg {
     pub fn dst_addr(&self) -> Result<IpAddr> {
         to_address(self.family, &self.id.dst_be)
     }
+}
+
+pub const NETLINK_HEADER_LEN: usize = mem::size_of::<NetlinkMessageHeader>();
+
+#[inline]
+fn netlink_next_message_starts_at(header: &NetlinkMessageHeader) -> usize {
+    netlink_msg_align(usize(header.len))
+}
+
+#[inline]
+fn netlink_msg_align(len: usize) -> usize {
+    const ALIGN_TO: usize = 4;
+
+    ((len) + ALIGN_TO - 1) & !(ALIGN_TO - 1)
 }
