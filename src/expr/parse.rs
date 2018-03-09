@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+use std::net::AddrParseError;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
-use std::net::AddrParseError;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use nom::types::CompleteStr;
+use nom::Err;
+use nom::ErrorKind as NomKind;
 use nom::IResult;
 use nom::multispace;
+use nom::types::CompleteStr;
 
 use errors::*;
 use expr::AddrFilter;
@@ -17,16 +20,22 @@ use expr::Expression;
 use expr::Input;
 use expr::Op;
 
-named!(input<CompleteStr, Input>, alt_complete!(
-    tag!("src") => { |_| Input::Src } |
-    tag!("dst") => { |_| Input::Dst }
+named!(mandatory_whitespace<CompleteStr, CompleteStr>, add_return_error!(ErrorKind::Custom(100),
+    call!(multispace)
 ));
 
-named!(op<CompleteStr, Op>, alt_complete!(
-    tag!("eq") => { |_| Op::Eq } |
-    tag!("=") => { |_| Op::Eq } |
-    tag!("==") => { |_| Op::Eq }
-));
+named!(input<CompleteStr, Input>, add_return_error!(ErrorKind::Custom(1),
+    alt_complete!(
+        tag!("src") => { |_| Input::Src } |
+        tag!("dst") => { |_| Input::Dst }
+)));
+
+named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
+    alt_complete!(
+        tag!("eq") => { |_| Op::Eq } |
+        tag!("==") => { |_| Op::Eq } |
+        tag!("=") => { |_| Op::Eq }
+)));
 
 fn parse_u8(input: CompleteStr) -> StdResult<u8, ParseIntError> {
     input.0.parse()
@@ -65,26 +74,28 @@ named!(quad<CompleteStr, u16>, map_res!(take_while1_s!(hex_digit), parse_quad));
 
 named!(mask<CompleteStr, u8>, preceded!(complete!(tag!("/")), octet));
 
-named!(v4addr<CompleteStr, IpAddr>, do_parse!(
-    a: octet >>
-    tag!(".") >>
-    b: octet >>
-    tag!(".") >>
-    c: octet >>
-    tag!(".") >>
-    d: octet >>
-    ( Ipv4Addr::new(a, b, c, d).into() )
-));
+named!(v4addr<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(20),
+    do_parse!(
+        a: octet >>
+        tag!(".") >>
+        b: octet >>
+        tag!(".") >>
+        c: octet >>
+        tag!(".") >>
+        d: octet >>
+        ( Ipv4Addr::new(a, b, c, d).into() )
+)));
 
-named!(v6addr_full<CompleteStr, IpAddr>, do_parse!(
-    a: quad >>
-    b: count_fixed!(
-        u16,
-        preceded!(tag!(":"), quad),
-        7
-    ) >>
-    ( Ipv6Addr::new(a, b[0], b[1], b[2], b[3], b[4], b[5], b[6]).into() )
-));
+named!(v6addr_full<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(21),
+    do_parse!(
+        a: quad >>
+        b: count_fixed!(
+            u16,
+            preceded!(tag!(":"), quad),
+            7
+        ) >>
+        ( Ipv6Addr::new(a, b[0], b[1], b[2], b[3], b[4], b[5], b[6]).into() )
+)));
 
 named!(v6_quads<CompleteStr, Vec<u16>>, separated_list_complete!(
     tag!(":"),
@@ -100,59 +111,111 @@ named!(v6addr_abbr_match<CompleteStr, CompleteStr>, recognize!(do_parse!(
     ()
 )));
 
-named!(v6addr_abbr<CompleteStr, IpAddr>,
+named!(v6addr_abbr<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(22),
     map_res!(v6addr_abbr_match, parse_v6)
-);
-
-named!(v6addr<CompleteStr, IpAddr>, alt_complete!(
-    v6addr_abbr |
-    v6addr_full
 ));
 
-named!(addr<CompleteStr, IpAddr>, alt_complete!(
-    v4addr |
-    delimited!(
-        tag!("["),
-        alt_complete!(
-            v4addr |
-            v6addr
+named!(v6addr<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(23),
+    alt_complete!(
+        v6addr_abbr |
+        v6addr_full
+)));
+
+named!(addr<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(24),
+    alt_complete!(
+        v4addr |
+        delimited!(
+            tag!("["),
+            alt_complete!(
+                v4addr |
+                v6addr
+            ),
+            tag!("]")
+        )
+)));
+
+named!(amp_addr_opt_opt<CompleteStr, AddrMaskPort>, add_return_error!(ErrorKind::Custom(40),
+    do_parse!(
+        addr: addr >>
+        mask: opt!(mask) >>
+        port: opt!(port) >>
+        ( AddrMaskPort {
+            addr: Some(addr), mask, port
+        } )
+)));
+
+named!(amp_just_port<CompleteStr, AddrMaskPort>, add_return_error!(ErrorKind::Custom(41),
+    do_parse!(
+        port: port >>
+        ( AddrMaskPort {
+            addr: None, mask: None, port: Some(port)
+        } )
+)));
+
+named!(addr_mask_port<CompleteStr, AddrMaskPort>, add_return_error!(ErrorKind::Custom(42),
+    alt_complete!(
+        amp_addr_opt_opt |
+        amp_just_port
+)));
+
+named!(addr_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(60),
+    do_parse!(
+        input: input >>
+        mandatory_whitespace >>
+        op: op >>
+        mandatory_whitespace >>
+        addr: addr_mask_port >>
+        ( Expression::Addr(AddrFilter { input, op, addr })) )
+));
+
+pub fn parse(input: &str) -> Result<Expression> {
+    match addr_expr(CompleteStr(input)) {
+        Ok((CompleteStr(""), expr)) => Ok(expr),
+        Ok((tail, val)) => bail!(
+            "illegal trailing data: {:?}, after successfully parsing: {:?}",
+            tail.0,
+            val
         ),
-        tag!("]")
-    )
-));
+        Err(Err::Error(e)) => {
+            let mut v = super::nom_util::prepare_errors(input, e);
+            v.reverse();
+            let mut problem = ErrorKind::Msg("syntax error in expression".to_string()).into();
+            for (kind, start, end) in v {
+                problem = Error::with_chain(
+                    problem,
+                    format!(
+                        "failed to parse '{}' near ... {} ...",
+                        translate(kind),
+                        &input[start..end]
+                    ),
+                );
+            }
+            Err(problem)
+        }
+        Err(Err::Incomplete(_)) => unreachable!(),
+        Err(e @ Err::Failure(_)) => bail!("parser internal failure: {:?}", e),
+    }
+}
 
-named!(amp_addr_opt_opt<CompleteStr, AddrMaskPort>, do_parse!(
-    addr: addr >>
-    mask: opt!(mask) >>
-    port: opt!(port) >>
-    ( AddrMaskPort {
-        addr: Some(addr), mask, port
-    } )
-));
-
-named!(amp_just_port<CompleteStr, AddrMaskPort>, do_parse!(
-    port: port >>
-    ( AddrMaskPort {
-        addr: None, mask: None, port: Some(port)
-    } )
-));
-
-named!(addr_mask_port<CompleteStr, AddrMaskPort>, alt_complete!(
-    amp_addr_opt_opt |
-    amp_just_port
-));
-
-named!(addr_expr<CompleteStr, Expression>, do_parse!(
-    input: input >>
-    many1!(multispace) >>
-    op: op >>
-    many1!(multispace) >>
-    addr: addr_mask_port >>
-    ( Expression::Addr(AddrFilter { input, op, addr })) )
-);
-
-fn explain(result: IResult<CompleteStr, Expression>) -> String {
-    format!("{:?}", result)
+fn translate(kind: NomKind) -> String {
+    match kind {
+        NomKind::Custom(code) => match code {
+            1 => "input".to_string(),
+            2 => "operator".to_string(),
+            20 => "ipv4 address".to_string(),
+            21 => "full ipv6 address".to_string(),
+            22 => "abbreviated ipv6 address".to_string(),
+            23 => "ipv6 address".to_string(),
+            24 => "address".to_string(),
+            40 => "address with optional mask/port".to_string(),
+            41 => ":port without address".to_string(),
+            42 => "address/mask:port".to_string(),
+            60 => "address filter".to_string(),
+            100 => "expected whitespace".to_string(),
+            other => format!("[parser bug: unrecognised code {}]", other),
+        },
+        other => format!("[parser internal: {:?}]", other),
+    }
 }
 
 #[cfg(test)]
@@ -170,7 +233,10 @@ mod tests {
         assert_eq!(Ok((CompleteStr(""), 4)), mask(CompleteStr("/4")));
         assert_eq!(Ok((CompleteStr(""), 12)), mask(CompleteStr("/12")));
         assert_eq!(
-            Ok((CompleteStr(""), "0.0.0.0".parse::<Ipv4Addr>().unwrap().into())),
+            Ok((
+                CompleteStr(""),
+                "0.0.0.0".parse::<Ipv4Addr>().unwrap().into()
+            )),
             addr(CompleteStr("0.0.0.0"))
         );
         assert_eq!(
@@ -192,7 +258,10 @@ mod tests {
             addr(CompleteStr("[2001:db8:0:0:1:0:0:1]"))
         );
         assert_eq!(
-            Ok((CompleteStr(""), AMP::new_str_v4(Some("0.0.0.0"), None, None))),
+            Ok((
+                CompleteStr(""),
+                AMP::new_str_v4(Some("0.0.0.0"), None, None)
+            )),
             amp_addr_opt_opt(CompleteStr("0.0.0.0"))
         );
     }
@@ -255,11 +324,5 @@ mod tests {
             )),
             addr_expr(CompleteStr("src eq :80"))
         );
-    }
-
-    #[ignore]
-    #[test]
-    fn error_bad_addr() {
-        assert_eq!("nope", explain(addr_expr(CompleteStr("src eq _"))));
     }
 }

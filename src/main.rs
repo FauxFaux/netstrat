@@ -9,6 +9,7 @@ extern crate nix;
 #[macro_use]
 extern crate nom;
 
+use std::env;
 use std::io;
 use std::io::Write;
 use std::net::IpAddr;
@@ -51,6 +52,7 @@ fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
 }
 
 fn run() -> Result<()> {
+    expr::parse(&env::args().nth(1).unwrap()).chain_err(|| "interpreting filter expression")?;
     let (pid_failures, pid_map) = pid_map::walk("/proc")?;
     if pid_failures {
         writeln!(

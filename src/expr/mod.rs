@@ -1,7 +1,10 @@
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 
+mod nom_util;
 mod parse;
+
+pub use self::parse::parse;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Op {
@@ -34,7 +37,7 @@ struct AddrFilter {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum Expression {
+pub enum Expression {
     Addr(AddrFilter),
     And(Vec<Expression>),
     Or(Vec<Expression>),
