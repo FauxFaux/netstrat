@@ -13,5 +13,5 @@ nix = "0.10"
 lto = true
 
 [dependencies.nom]
-version = "3"
-features = ["nightly", "verbose-errors"]
+version = "4.0.0-beta1"
+features = ["verbose-errors"]
