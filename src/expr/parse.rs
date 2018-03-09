@@ -157,10 +157,10 @@ named!(addr<CompleteStr, IpAddr>, add_return_error!(ErrorKind::Custom(24),
         v4addr |
         delimited!(
             tag!("["),
-            alt_complete!(
+            return_error!(ErrorKind::Custom(2400), alt_complete!(
                 v4addr |
                 v6addr
-            ),
+            )),
             tag!("]")
         )
 )));
@@ -195,7 +195,7 @@ named!(addr_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(6
         mandatory_whitespace >>
         op: op >>
         mandatory_whitespace >>
-        addr: addr_mask_port >>
+        addr: return_error!(ErrorKind::Custom(6000), addr_mask_port) >>
         ( Expression::Addr(AddrFilter { input, op, addr })) )
 ));
 
@@ -203,7 +203,7 @@ named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(
     do_parse!(
         tag!("state") >>
         mandatory_whitespace >>
-        state: return_error!(ErrorKind::Custom(62), state) >>
+        state: return_error!(ErrorKind::Custom(6100), state) >>
         ( Expression::State(state) )
 )));
 
@@ -255,12 +255,14 @@ fn translate(kind: NomKind) -> String {
             22 => "abbreviated ipv6 address".to_string(),
             23 => "ipv6 address".to_string(),
             24 => "address".to_string(),
+            2400 => "bracketed address".to_string(),
             40 => "address with optional mask/port".to_string(),
             41 => ":port without address".to_string(),
-            42 => "address/mask:port".to_string(),
+            42 => "address/mask:port (hint: v6 addresses should be [bracketed])".to_string(),
             60 => "address filter".to_string(),
+            6000 => "'address' argument".to_string(),
             61 => "state filter".to_string(),
-            62 => "'state' argument ".to_string(),
+            6100 => "'state' argument ".to_string(),
             70 => "filter".to_string(),
             100 => "expected whitespace".to_string(),
             other => format!("[parser bug: unrecognised code {}]", other),
