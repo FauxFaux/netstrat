@@ -80,7 +80,10 @@ fn run() -> Result<()> {
         // ---
         .arg(Arg::with_name("all")
             .short("a")
-            .help("start with a filter of 'state all'"))
+            .help("enable all supported types and perform no filtering (currently a noop)"))
+        .arg(Arg::with_name("connected")
+            .short("c")
+            .help("start with a filter of 'state connected'"))
         .arg(Arg::with_name("listening")
             .short("l")
             .help("start with a filter of 'state listening'"))
