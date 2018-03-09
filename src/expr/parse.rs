@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
+use std::net::AddrParseError;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
 use std::str::FromStr;
@@ -38,6 +39,10 @@ fn parse_quad(input: &str) -> StdResult<u16, ParseIntError> {
     u16::from_str_radix(input, 16)
 }
 
+fn parse_v6(input: &str) -> StdResult<IpAddr, AddrParseError> {
+    Ok(input.parse::<Ipv6Addr>()?.into())
+}
+
 fn digit(input: char) -> bool {
     input.is_ascii_digit()
 }
@@ -51,6 +56,8 @@ named!(port<&str, u16>, preceded!(complete!(tag!(":")), alt_complete!(
     tag!("*") => { |_| 0 }
 )));
 
+// TODO: I'd love `do_parse!()` instead of this `map_res!` and helper nonsense,
+// TODO: but it doesn't seem to consume the input, and I don't get why.
 named!(octet<&str, u8>, map_res!(take_while1_s!(digit), parse_u8));
 
 named!(quad<&str, u16>, map_res!(take_while1_s!(hex_digit), parse_quad));
@@ -78,13 +85,26 @@ named!(v6addr_full<&str, IpAddr>, do_parse!(
     ( Ipv6Addr::new(a, b[0], b[1], b[2], b[3], b[4], b[5], b[6]).into() )
 ));
 
-named!(v6addr_any<&str, IpAddr>, do_parse!(
-    tag!("::") >>
-    ( Ipv6Addr::unspecified().into() )
+named!(v6_quads<&str, Vec<u16>>, separated_list_complete!(
+    tag!(":"),
+    quad
 ));
 
+// TODO: could take the actual parsed u16s out of this, recombine them by hand
+// TODO: if the length was right, and build the address directly
+named!(v6addr_abbr_match<&str, &str>, recognize!(do_parse!(
+    before: v6_quads >>
+    tag!("::") >>
+    after: v6_quads >>
+    ()
+)));
+
+named!(v6addr_abbr<&str, IpAddr>,
+    map_res!(v6addr_abbr_match, parse_v6)
+);
+
 named!(v6addr<&str, IpAddr>, alt_complete!(
-    v6addr_any |
+    v6addr_abbr |
     v6addr_full
 ));
 
@@ -151,6 +171,13 @@ mod tests {
         assert_eq!(
             IResult::Done("", "::".parse::<Ipv6Addr>().unwrap().into()),
             addr("[::]")
+        );
+        assert_eq!(
+            IResult::Done(
+                "",
+                "2001:db8:0:0:1::1".parse::<Ipv6Addr>().unwrap().into()
+            ),
+            addr("[2001:db8::1:0:0:1]")
         );
         assert_eq!(
             IResult::Done(
