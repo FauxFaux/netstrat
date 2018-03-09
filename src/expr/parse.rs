@@ -207,10 +207,35 @@ named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(
         ( Expression::State(state) )
 )));
 
-named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(70),
+named!(binary_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(70),
+    do_parse!(
+        left: single_expr >>
+        mandatory_whitespace >>
+        op: alt_complete!(tag!("and") | tag!("or")) >>
+        mandatory_whitespace >>
+        right: single_expr >>
+        ( match op.0 {
+            "and" => Expression::And(Box::new(left), Box::new(right)),
+            "or"  => Expression::Or(Box::new(left), Box::new(right)),
+            _     => unreachable!(),
+        } )
+
+)));
+
+named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(71),
     alt_complete!(
+        delimited!(
+            tag!("("),
+            return_error!(ErrorKind::Custom(7100), root),
+            tag!(")")
+        ) |
         addr_expr |
         state_expr
+)));
+
+named!(root<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(72),
+    alt_complete!(
+        single_expr | binary_expr
 )));
 
 pub fn parse(input: &str) -> Result<Expression> {
@@ -263,7 +288,9 @@ fn translate(kind: NomKind) -> String {
             6000 => "'address' argument".to_string(),
             61 => "state filter".to_string(),
             6100 => "'state' argument ".to_string(),
-            70 => "filter".to_string(),
+            70 => "binary expression".to_string(),
+            71 => "expression".to_string(),
+            7100 => "nested expression".to_string(),
             100 => "expected whitespace".to_string(),
             other => format!("[parser bug: unrecognised code {}]", other),
         },
