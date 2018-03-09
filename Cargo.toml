@@ -5,13 +5,14 @@ authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 [dependencies]
 cast = "0.2"
+clap = "2"
 error-chain = "0.11"
 libc = "0.2"
 nix = "0.10"
 
-[profile.release]
-lto = true
-
 [dependencies.nom]
 version = "4.0.0-beta1"
 features = ["verbose-errors"]
+
+[profile.release]
+lto = true

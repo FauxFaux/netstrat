@@ -2,6 +2,7 @@
 #![feature(ip_constructors)]
 
 extern crate cast;
+extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate libc;
@@ -9,7 +10,6 @@ extern crate nix;
 #[macro_use]
 extern crate nom;
 
-use std::env;
 use std::io;
 use std::io::Write;
 use std::net::IpAddr;
@@ -52,7 +52,84 @@ fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    expr::parse(&env::args().nth(1).unwrap()).chain_err(|| "interpreting filter expression")?;
+    use clap::Arg;
+    let matches = clap::App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("Filter system sockets by family, then protocol, then a given expression")
+        .setting(clap::AppSettings::DeriveDisplayOrder)
+        .setting(clap::AppSettings::UnifiedHelpMessage)
+        // n/r (not-)resolve (default: not)
+        // a/l: fiddling with the state filter; default is:
+        //      all minus listening, closed, time_wait, syn_recv
+        // 4/6: show only this family (default: all?)
+        // t/S[ctp]/u/d[ccp]/[ra]w/[uni]x/U[dplite]: show only this type, default all
+        // H: no header
+        .arg(Arg::with_name("resolve")
+            .long("resolve")
+            .short("r")
+            .help("lookup names, ports and users"))
+        .arg(Arg::with_name("numeric")
+            .long("numeric")
+            .short("n")
+            .help("don't lookup names, ports or users"))
+        .arg(Arg::with_name("programs")
+            .long("programs")
+            .short("p")
+            .help("lookup owning process pid")
+        )
+        // ---
+        .arg(Arg::with_name("all")
+            .short("a")
+            .help("start with a filter of 'state all'"))
+        .arg(Arg::with_name("listening")
+            .short("l")
+            .help("start with a filter of 'state listening'"))
+        // ---
+        .arg(Arg::with_name("family")
+            .long("family")
+            .short("f")
+            .takes_value(true)
+            .possible_values(&["all", "inet", "inet6"])
+            .multiple(true)
+            .require_delimiter(true)
+            .help("only include these families")
+            )
+        .arg(Arg::with_name("4")
+            .short("4")
+            .help("short for '--family=inet'"))
+        .arg(Arg::with_name("6")
+            .short("6")
+            .help("short for '--family=inet6'"))
+        // ---
+        .arg(Arg::with_name("filter")
+            .help("filter expression"))
+        // ---
+        .arg(Arg::with_name("no-header")
+            .long("no-header")
+            .short("H")
+            .help("don't emit header row"))
+        .after_help(r"FILTER:
+    state {all|connected|synchronised|bucket|big|...}
+    {either|src|dest} {=|neq|<|≥} [ADDR][/MASK][:PORT]
+    pid NUMBER
+    app SHORT-NAME
+    port PORT      (sugar for 'either = :PORT')
+
+    EXPR and (EXPR || EXPR)
+
+DEFAULTS:
+    --family inet,inet6
+    --proto  tcp,udp
+
+Defaults are used if no overriding argument of that group is provided.")
+        .get_matches();
+
+    if let Some(filter) = matches.value_of("filter") {
+        println!(
+            "{:?}",
+            expr::parse(filter).chain_err(|| "interpreting filter expression")?
+        );
+    }
     let (pid_failures, pid_map) = pid_map::walk("/proc")?;
     if pid_failures {
         writeln!(
