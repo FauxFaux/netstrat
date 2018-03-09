@@ -1,15 +1,12 @@
-use std::collections::HashMap;
 use std::net::AddrParseError;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
-use std::str::FromStr;
 
 use nom::Err;
 use nom::ErrorKind as NomKind;
-use nom::IResult;
 use nom::multispace;
 use nom::types::CompleteStr;
 
@@ -26,15 +23,40 @@ named!(mandatory_whitespace<CompleteStr, CompleteStr>, add_return_error!(ErrorKi
 
 named!(input<CompleteStr, Input>, add_return_error!(ErrorKind::Custom(1),
     alt_complete!(
-        tag!("src") => { |_| Input::Src } |
-        tag!("dst") => { |_| Input::Dst }
+        tag!("sport")  => { |_| Input::SrcPort } |
+        tag!("dport")  => { |_| Input::DstPort } |
+        tag!("src")    => { |_| Input::Src } |
+        tag!("dst")    => { |_| Input::Dst } |
+        tag!("any")    => { |_| Input::Either } |
+        tag!("either") => { |_| Input::Either }
 )));
 
 named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
     alt_complete!(
-        tag!("eq") => { |_| Op::Eq } |
-        tag!("==") => { |_| Op::Eq } |
-        tag!("=") => { |_| Op::Eq }
+        tag!("eq")  => { |_| Op::Eq } |
+        tag!("==")  => { |_| Op::Eq } |
+        tag!("=")   => { |_| Op::Eq } |
+
+        tag!("neq") => { |_| Op::Ne } |
+        tag!("ne")  => { |_| Op::Ne } |
+        tag!("≠")   => { |_| Op::Ne } |
+        tag!("!=")  => { |_| Op::Ne } |
+
+        tag!("geq") => { |_| Op::Ge } |
+        tag!("ge")  => { |_| Op::Ge } |
+        tag!(">=")  => { |_| Op::Ge } |
+        tag!("≥")   => { |_| Op::Ge } |
+
+        tag!("leq") => { |_| Op::Le } |
+        tag!("le")  => { |_| Op::Le } |
+        tag!("<=")  => { |_| Op::Le } |
+        tag!("≤")   => { |_| Op::Le } |
+
+        tag!("gt")  => { |_| Op::Gt } |
+        tag!(">")   => { |_| Op::Gt } |
+
+        tag!("lt")  => { |_| Op::Lt } |
+        tag!("<")   => { |_| Op::Lt }
 )));
 
 fn parse_u8(input: CompleteStr) -> StdResult<u8, ParseIntError> {

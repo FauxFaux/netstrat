@@ -2,9 +2,7 @@
 //! accept `&[u8]` and converting sucks.
 
 use nom::Context;
-use nom::Err;
 use nom::ErrorKind;
-use nom::IResult;
 use nom::types::CompleteStr;
 
 pub fn prepare_errors<E: Clone>(
