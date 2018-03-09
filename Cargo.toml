@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 [dependencies]
+bitflags = "1"
 cast = "0.2"
 clap = "2"
 error-chain = "0.11"

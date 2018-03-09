@@ -1,6 +1,7 @@
 // Trivial helper methods:
 #![feature(ip_constructors)]
-
+#[macro_use]
+extern crate bitflags;
 extern crate cast;
 extern crate clap;
 #[macro_use]

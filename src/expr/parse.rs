@@ -5,6 +5,7 @@ use std::net::Ipv6Addr;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
 
+use nom::Context;
 use nom::Err;
 use nom::ErrorKind as NomKind;
 use nom::multispace;
@@ -16,6 +17,7 @@ use expr::AddrMaskPort;
 use expr::Expression;
 use expr::Input;
 use expr::Op;
+use expr::State;
 
 named!(mandatory_whitespace<CompleteStr, CompleteStr>, add_return_error!(ErrorKind::Custom(100),
     call!(multispace)
@@ -57,6 +59,13 @@ named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
 
         tag!("lt")  => { |_| Op::Lt } |
         tag!("<")   => { |_| Op::Lt }
+)));
+
+named!(state<CompleteStr, State>, add_return_error!(ErrorKind::Custom(3),
+    alt_complete!(
+        tag!("connected")    => { |_| State::connected() } |
+        tag!("established")  => { |_| State::ESTABLISHED }
+    // TODO
 )));
 
 fn parse_u8(input: CompleteStr) -> StdResult<u8, ParseIntError> {
@@ -190,33 +199,49 @@ named!(addr_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(6
         ( Expression::Addr(AddrFilter { input, op, addr })) )
 ));
 
+named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(61),
+    do_parse!(
+        tag!("state") >>
+        mandatory_whitespace >>
+        state: return_error!(ErrorKind::Custom(62), state) >>
+        ( Expression::State(state) )
+)));
+
+named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(70),
+    alt_complete!(
+        addr_expr |
+        state_expr
+)));
+
 pub fn parse(input: &str) -> Result<Expression> {
-    match addr_expr(CompleteStr(input)) {
+    match single_expr(CompleteStr(input)) {
         Ok((CompleteStr(""), expr)) => Ok(expr),
         Ok((tail, val)) => bail!(
             "illegal trailing data: {:?}, after successfully parsing: {:?}",
             tail.0,
             val
         ),
-        Err(Err::Error(e)) => {
-            let mut v = super::nom_util::prepare_errors(input, e);
-            v.reverse();
-            let mut problem = ErrorKind::Msg("syntax error in expression".to_string()).into();
-            for (kind, start, end) in v {
-                problem = Error::with_chain(
-                    problem,
-                    format!(
-                        "failed to parse '{}' near ... {} ...",
-                        translate(kind),
-                        &input[start..end]
-                    ),
-                );
-            }
-            Err(problem)
-        }
+        Err(Err::Error(e)) => Err(translate_nom_error(input, e, "syntax error in expression")),
+        Err(Err::Failure(e)) => Err(translate_nom_error(input, e, "invalid value in expression")),
         Err(Err::Incomplete(_)) => unreachable!(),
-        Err(e @ Err::Failure(_)) => bail!("parser internal failure: {:?}", e),
     }
+}
+
+fn translate_nom_error(input: &str, e: Context<CompleteStr, u32>, problem: &str) -> Error {
+    let mut v = super::nom_util::prepare_errors(input, e);
+    v.reverse();
+    let mut problem = ErrorKind::Msg(problem.to_string()).into();
+    for (kind, start, end) in v {
+        problem = Error::with_chain(
+            problem,
+            format!(
+                "failed to parse '{}' near ... {} ...",
+                translate(kind),
+                &input[start..end]
+            ),
+        );
+    }
+    problem
 }
 
 fn translate(kind: NomKind) -> String {
@@ -224,6 +249,7 @@ fn translate(kind: NomKind) -> String {
         NomKind::Custom(code) => match code {
             1 => "input".to_string(),
             2 => "operator".to_string(),
+            3 => "state literal".to_string(),
             20 => "ipv4 address".to_string(),
             21 => "full ipv6 address".to_string(),
             22 => "abbreviated ipv6 address".to_string(),
@@ -233,6 +259,9 @@ fn translate(kind: NomKind) -> String {
             41 => ":port without address".to_string(),
             42 => "address/mask:port".to_string(),
             60 => "address filter".to_string(),
+            61 => "state filter".to_string(),
+            62 => "'state' argument ".to_string(),
+            70 => "filter".to_string(),
             100 => "expected whitespace".to_string(),
             other => format!("[parser bug: unrecognised code {}]", other),
         },
