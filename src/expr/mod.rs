@@ -67,8 +67,8 @@ pub struct AddrFilter {
 pub enum Expression {
     Addr(AddrFilter),
     State(State),
-    And(Box<Expression>, Box<Expression>),
-    Or(Box<Expression>, Box<Expression>),
+    AllOf(Vec<Expression>),
+    AnyOf(Vec<Expression>),
     Not(Box<Expression>),
 }
 

@@ -207,21 +207,6 @@ named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(
         ( Expression::State(state) )
 )));
 
-named!(binary_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(70),
-    do_parse!(
-        left: single_expr >>
-        mandatory_whitespace >>
-        op: alt_complete!(tag!("and") | tag!("or")) >>
-        mandatory_whitespace >>
-        right: single_expr >>
-        ( match op.0 {
-            "and" => Expression::And(Box::new(left), Box::new(right)),
-            "or"  => Expression::Or(Box::new(left), Box::new(right)),
-            _     => unreachable!(),
-        } )
-
-)));
-
 named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(71),
     alt_complete!(
         delimited!(
@@ -234,12 +219,29 @@ named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom
 )));
 
 named!(root<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(72),
-    alt_complete!(
-        single_expr | binary_expr
+    ors
+));
+
+named!(ors<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(73),
+    do_parse!(
+        list: separated_nonempty_list_complete!(
+            // TODO: whitespace
+            tag!(" or "),
+            return_error!(ErrorKind::Custom(7300), ands)) >>
+        ( Expression::AnyOf(list) )
+)));
+
+named!(ands<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(74),
+    do_parse!(
+        list: separated_nonempty_list_complete!(
+            // TODO: whitespace
+            tag!(" and "),
+            return_error!(ErrorKind::Custom(7400), single_expr)) >>
+        ( Expression::AllOf(list) )
 )));
 
 pub fn parse(input: &str) -> Result<Expression> {
-    match single_expr(CompleteStr(input)) {
+    match root(CompleteStr(input)) {
         Ok((CompleteStr(""), expr)) => Ok(expr),
         Ok((tail, val)) => bail!(
             "illegal trailing data: {:?}, after successfully parsing: {:?}",
@@ -260,7 +262,7 @@ fn translate_nom_error(input: &str, e: Context<CompleteStr, u32>, problem: &str)
         problem = Error::with_chain(
             problem,
             format!(
-                "failed to parse '{}' near ... {} ...",
+                "failed to parse {}, near ... {} ...",
                 translate(kind),
                 &input[start..end]
             ),
@@ -288,9 +290,13 @@ fn translate(kind: NomKind) -> String {
             6000 => "'address' argument".to_string(),
             61 => "state filter".to_string(),
             6100 => "'state' argument ".to_string(),
-            70 => "binary expression".to_string(),
-            71 => "expression".to_string(),
+            71 => "expression; expected '(', 'state' or INPUT".to_string(),
             7100 => "nested expression".to_string(),
+            72 => "root".to_string(),
+            73 => "any-of; expected expression or 'or'".to_string(),
+            7300 => "nested any-of expression".to_string(),
+            74 => "all-of; expected expression or 'and'".to_string(),
+            7400 => "nested all-of expression".to_string(),
             100 => "expected whitespace".to_string(),
             other => format!("[parser bug: unrecognised code {}]", other),
         },
