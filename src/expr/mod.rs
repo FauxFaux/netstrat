@@ -118,6 +118,7 @@ impl fmt::Debug for Expression {
         use self::Expression::*;
         match *self {
             Addr(filter) => write!(f, "({:?})", filter),
+            // TODO: "state A or state B" this?
             State(filter) => write!(f, "({:?})", filter),
             AllOf(ref list) => write_list(f, list, " and "),
             AnyOf(ref list) => write_list(f, list, " or "),

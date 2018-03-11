@@ -24,6 +24,7 @@ mod pid_map;
 mod raw;
 
 use errors::*;
+use pid_map::PidMap;
 
 fn render_address(addr: &IpAddr, port: u16) -> String {
     match *addr {
@@ -32,9 +33,9 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
     }
 }
 
-fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
+fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg, map: &PidMap) -> Result<()> {
     println!(
-        "{}{} src: {}, dst: {}, uid: {}",
+        "{}{} src: {}, dst: {}, uid: {}, proc: {:?}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
@@ -46,7 +47,8 @@ fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg) -> Result<()> {
         },
         render_address(&msg.src_addr()?, msg.src_port()),
         render_address(&msg.dst_addr()?, msg.dst_port()),
-        msg.uid
+        msg.uid,
+        map.get(&msg.inode)
     );
 
     Ok(())
@@ -141,7 +143,6 @@ Defaults are used if no overriding argument of that group is provided.")
             "Couldn't read some values from /proc, do you have permission?"
         )?;
     }
-    println!("{:?}", pid_map);
 
     let mut socket = raw::NetlinkDiag::new()?;
     for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
@@ -149,7 +150,7 @@ Defaults are used if no overriding argument of that group is provided.")
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ptr) = recv.next()? {
-                dump_proto(proto, ptr)?;
+                dump_proto(proto, ptr, &pid_map)?;
             }
         }
     }

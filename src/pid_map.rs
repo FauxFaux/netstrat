@@ -6,7 +6,8 @@ use std::path::Path;
 
 use errors::*;
 
-type Inode = u32;
+pub type Inode = u32;
+pub type PidMap = HashMap<Inode, InodeInfo>;
 
 #[derive(Copy, Clone, Default)]
 pub struct InodeInfo {
@@ -15,7 +16,7 @@ pub struct InodeInfo {
     process: [u8; 16],
 }
 
-pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, HashMap<Inode, InodeInfo>)> {
+pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
     let mut failures = false;
     let mut ret = HashMap::with_capacity(512);
     let root = root.as_ref();
