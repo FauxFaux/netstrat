@@ -21,7 +21,7 @@ use nix::sys::socket::SockProtocol;
 mod errors;
 mod expr;
 mod pid_map;
-mod raw;
+mod netlink;
 
 use errors::*;
 use pid_map::PidMap;
@@ -33,7 +33,7 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
     }
 }
 
-fn dump_proto(proto: SockProtocol, msg: &raw::InetDiagMsg, map: &PidMap) -> Result<()> {
+fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiagMsg, map: &PidMap) -> Result<()> {
     println!(
         "{}{} src: {}, dst: {}, uid: {}, proc: {:?}",
         match proto {
@@ -144,7 +144,7 @@ Defaults are used if no overriding argument of that group is provided.")
         )?;
     }
 
-    let mut socket = raw::NetlinkDiag::new()?;
+    let mut socket = netlink::NetlinkDiag::new()?;
     for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
         for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
             socket.ask_ip(family, proto)?;
