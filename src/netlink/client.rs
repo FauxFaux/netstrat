@@ -7,6 +7,7 @@ use cast::usize;
 
 use libc;
 use libc::c_int;
+use libc::c_short;
 
 use libc::NLM_F_DUMP;
 use libc::NLM_F_REQUEST;
@@ -133,11 +134,7 @@ impl Recv {
         unsafe { &*(self.buf[self.ptr..].as_ptr() as *const _) }
     }
 
-    fn advance(&mut self) {
-        self.ptr += netlink_next_message_starts_at(self.header());
-    }
-
-    pub fn next(&mut self) -> Result<Option<&InetDiagMsg>> {
+    pub fn next(&mut self) -> Result<Option<InetDiagMsg>> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -147,26 +144,22 @@ impl Recv {
             const NLMSG_INET_DIAG: c_int = 20;
 
             let nl_header = *self.header();
+            let netlink_data =
+                &self.buf[self.ptr + NETLINK_HEADER_LEN..self.ptr + usize(nl_header.len)];
 
-            match nl_header.message_type as c_int {
+            let ret = match nl_header.message_type as c_int {
                 libc::NLMSG_DONE => return Ok(None),
                 libc::NLMSG_ERROR => bail!("netlink error"),
                 libc::NLMSG_OVERRUN => bail!("netlink overrun"),
-                libc::NLMSG_NOOP => self.advance(),
-                NLMSG_INET_DIAG => {
-                    let main_len = NETLINK_HEADER_LEN + mem::size_of::<InetDiagMsg>();
-                    ensure!(
-                        self.remaining() >= main_len,
-                        "not enough space in buf for an InetDiagMsg"
-                    );
-                    let data_starts_at = self.ptr + NETLINK_HEADER_LEN;
-                    let val = unsafe { &*(self.buf[data_starts_at..].as_ptr() as *const _) };
-                    println!("{}", usize(nl_header.len) - main_len);
-                    self.advance();
-                    return Ok(Some(val));
-                }
-
+                libc::NLMSG_NOOP => None,
+                NLMSG_INET_DIAG => Some(extract_diag_msg(netlink_data)?),
                 other => bail!("unsupported message type: {}", other),
+            };
+
+            self.ptr += netlink_next_message_starts_at(&nl_header);
+
+            if ret.is_some() {
+                return Ok(ret);
             }
         }
     }
@@ -180,6 +173,15 @@ impl Drop for NetlinkDiag {
     }
 }
 
+fn extract_diag_msg(buf: &[u8]) -> Result<InetDiagMsg> {
+    let main_len = mem::size_of::<InetDiagMsg>();
+    ensure!(
+        buf.len() >= main_len,
+        "not enough space in buf for an InetDiagMsg"
+    );
+    Ok(unsafe { *(buf.as_ptr() as *const _) })
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Default, Debug)]
 pub struct NetlinkMessageHeader {
@@ -189,6 +191,13 @@ pub struct NetlinkMessageHeader {
     pub flags: u16,
     pub seq: u32,
     pub pid: u32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Default, Debug)]
+pub struct RtAttrHeader {
+    pub len: c_short,
+    pub message_type: c_short,
 }
 
 pub const NETLINK_HEADER_LEN: usize = mem::size_of::<NetlinkMessageHeader>();

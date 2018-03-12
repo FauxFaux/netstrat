@@ -150,7 +150,7 @@ Defaults are used if no overriding argument of that group is provided.")
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ptr) = recv.next()? {
-                dump_proto(proto, ptr, &pid_map)?;
+                dump_proto(proto, &ptr, &pid_map)?;
             }
         }
     }
