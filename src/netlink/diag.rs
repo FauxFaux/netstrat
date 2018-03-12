@@ -7,9 +7,9 @@ use cast::i32;
 use libc::AF_INET;
 use libc::AF_INET6;
 use libc::c_int;
+use nix::sys::socket::AddressFamily;
 
 use errors::*;
-use netlink::AddressFamily;
 
 #[repr(C)]
 #[derive(Copy, Clone, Default, Debug)]

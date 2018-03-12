@@ -1,5 +1,5 @@
-/// Fields available as of Linux 3.2; still compatible
-/// (although only through alignment weirdness)
+/// Fields available as of Linux 3.2; still compatible to 4.16 (2018)
+/// (although only through alignment weirdness).
 #[repr(C)]
 struct TcpInfo {
     state: u8,
