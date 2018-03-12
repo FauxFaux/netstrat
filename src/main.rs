@@ -24,6 +24,7 @@ mod pid_map;
 mod netlink;
 
 use errors::*;
+use netlink::Message;
 use pid_map::PidMap;
 
 fn render_address(addr: &IpAddr, port: u16) -> String {
@@ -33,22 +34,22 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
     }
 }
 
-fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiagMsg, map: &PidMap) -> Result<()> {
+fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Result<()> {
     println!(
         "{}{} src: {}, dst: {}, uid: {}, proc: {:?}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
         },
-        match msg.family() {
+        match msg.msg.family() {
             Some(AddressFamily::Inet) => "4".to_string(),
             Some(AddressFamily::Inet6) => "6".to_string(),
             other => format!("?? {:?}", other),
         },
-        render_address(&msg.src_addr()?, msg.src_port()),
-        render_address(&msg.dst_addr()?, msg.dst_port()),
-        msg.uid,
-        map.get(&msg.inode)
+        render_address(&msg.msg.src_addr()?, msg.msg.src_port()),
+        render_address(&msg.msg.dst_addr()?, msg.msg.dst_port()),
+        msg.msg.uid,
+        map.get(&msg.msg.inode)
     );
 
     Ok(())
@@ -150,7 +151,10 @@ Defaults are used if no overriding argument of that group is provided.")
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ptr) = recv.next()? {
-                dump_proto(proto, &ptr, &pid_map)?;
+                match ptr {
+                    Message::InetDiag(ref msg) => dump_proto(proto, msg, &pid_map)?,
+                    _ => unimplemented!(),
+                }
             }
         }
     }

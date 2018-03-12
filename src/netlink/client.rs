@@ -20,6 +20,8 @@ use nix::sys::socket::SockType;
 use nix::sys::uio::IoVec;
 
 use errors::*;
+use netlink::Message;
+use netlink::diag::InetDiag;
 use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
 
@@ -134,7 +136,7 @@ impl Recv {
         unsafe { &*(self.buf[self.ptr..].as_ptr() as *const _) }
     }
 
-    pub fn next(&mut self) -> Result<Option<InetDiagMsg>> {
+    pub fn next(&mut self) -> Result<Option<Message>> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -144,8 +146,8 @@ impl Recv {
             const NLMSG_INET_DIAG: c_int = 20;
 
             let nl_header = *self.header();
-            let netlink_data =
-                &self.buf[self.ptr + NETLINK_HEADER_LEN..self.ptr + usize(nl_header.len)];
+            let netlink_msg = &self.buf[self.ptr..self.ptr + usize(nl_header.len)];
+            let netlink_data = &netlink_msg[NETLINK_HEADER_LEN..];
 
             let ret = match nl_header.message_type as c_int {
                 libc::NLMSG_DONE => return Ok(None),
@@ -173,13 +175,14 @@ impl Drop for NetlinkDiag {
     }
 }
 
-fn extract_diag_msg(buf: &[u8]) -> Result<InetDiagMsg> {
+fn extract_diag_msg(buf: &[u8]) -> Result<Message> {
     let main_len = mem::size_of::<InetDiagMsg>();
     ensure!(
         buf.len() >= main_len,
         "not enough space in buf for an InetDiagMsg"
     );
-    Ok(unsafe { *(buf.as_ptr() as *const _) })
+    let msg = unsafe { *(buf.as_ptr() as *const _) };
+    Ok(Message::InetDiag(InetDiag { msg, tcp: None }))
 }
 
 #[repr(C)]

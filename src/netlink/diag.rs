@@ -10,6 +10,7 @@ use libc::c_int;
 use nix::sys::socket::AddressFamily;
 
 use errors::*;
+use netlink::tcp::TcpInfo;
 
 #[repr(C)]
 #[derive(Copy, Clone, Default, Debug)]
@@ -46,6 +47,12 @@ pub struct InetDiagMsg {
     pub wqueue: u32,
     pub uid: u32,
     pub inode: u32,
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct InetDiag {
+    pub msg: InetDiagMsg,
+    pub tcp: Option<TcpInfo>,
 }
 
 impl InetDiagMsg {

@@ -1,7 +1,8 @@
 /// Fields available as of Linux 3.2; still compatible to 4.16 (2018)
 /// (although only through alignment weirdness).
 #[repr(C)]
-struct TcpInfo {
+#[derive(Copy, Clone, Default, Debug)]
+pub struct TcpInfo {
     state: u8,
     ca_state: u8,
     retransmits: u8,
