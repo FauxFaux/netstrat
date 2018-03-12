@@ -1,3 +1,5 @@
+use std::mem;
+
 /// Fields available as of Linux 3.2; still compatible to 4.16 (2018)
 /// (although only through alignment weirdness).
 #[repr(C)]
@@ -39,4 +41,62 @@ pub struct TcpInfo {
     rcv_rtt: u32,
     rcv_space: u32,
     total_retrans: u32,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum State {
+    Established = 1,
+    SynSent = 2,
+    SynRecv = 3,
+    FinWait1 = 4,
+    FinWait2 = 5,
+    TimeClose = 6,
+    Close = 7,
+    CloseWait = 8,
+    LastAck = 9,
+    Listen = 10,
+    Closing = 11,
+    NewSynRecv = 12,
+}
+
+bitflags! {
+    pub struct States: u16 {
+        const ESTABLISHED  = (1 << State::Established as usize);
+        const SYN_SENT     = (1 << State::SynSent     as usize);
+        const SYN_RECV     = (1 << State::SynRecv     as usize);
+        const FIN_WAIT_1   = (1 << State::FinWait1    as usize);
+        const FIN_WAIT_2   = (1 << State::FinWait2    as usize);
+        const TIME_CLOSE   = (1 << State::TimeClose   as usize);
+        const CLOSE        = (1 << State::Close       as usize);
+        const CLOSE_WAIT   = (1 << State::CloseWait   as usize);
+        const LAST_ACK     = (1 << State::LastAck     as usize);
+        const LISTEN       = (1 << State::Listen      as usize);
+        const CLOSING      = (1 << State::Closing     as usize);
+        const NEW_SYN_RECV = (1 << State::NewSynRecv  as usize);
+    }
+}
+
+impl State {
+    fn from_u8(val: u8) -> Option<State> {
+        if val >= 1 || val <= 12 {
+            // Safe so long as 'val' is in range, which is manually checked here.
+            Some(unsafe { mem::transmute(val) })
+        } else {
+            None
+        }
+    }
+}
+
+impl States {
+    pub fn connected() -> States {
+        States::ESTABLISHED | States::SYN_SENT | States::SYN_RECV | States::FIN_WAIT_1
+            | States::FIN_WAIT_2 | States::CLOSE_WAIT | States::LAST_ACK | States::CLOSING
+    }
+}
+
+impl TcpInfo {
+    pub fn state(&self) -> Option<State> {
+        State::from_u8(self.state)
+    }
 }

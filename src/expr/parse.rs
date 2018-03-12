@@ -17,7 +17,7 @@ use expr::AddrMaskPort;
 use expr::Expression;
 use expr::Input;
 use expr::Op;
-use expr::State;
+use netlink::tcp::States;
 
 named!(mandatory_whitespace<CompleteStr, CompleteStr>, add_return_error!(ErrorKind::Custom(100),
     call!(multispace)
@@ -61,10 +61,10 @@ named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
         tag!("<")   => { |_| Op::Lt }
 )));
 
-named!(state<CompleteStr, State>, add_return_error!(ErrorKind::Custom(3),
+named!(state<CompleteStr, States>, add_return_error!(ErrorKind::Custom(3),
     alt_complete!(
-        tag!("connected")    => { |_| State::connected() } |
-        tag!("established")  => { |_| State::ESTABLISHED }
+        tag!("connected")    => { |_| States::connected() } |
+        tag!("established")  => { |_| States::ESTABLISHED }
     // TODO
 )));
 

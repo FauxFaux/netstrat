@@ -3,6 +3,7 @@ use std::net::IpAddr;
 
 mod nom_util;
 mod parse;
+use netlink::tcp::States;
 
 pub use self::parse::parse;
 
@@ -25,30 +26,6 @@ pub enum Input {
     Either,
 }
 
-bitflags! {
-    pub struct State: u16 {
-        const ESTABLISHED  = (1 << 1);
-        const SYN_SENT     = (1 << 2);
-        const SYN_RECV     = (1 << 3);
-        const FIN_WAIT_1   = (1 << 4);
-        const FIN_WAIT_2   = (1 << 5);
-        const TIME_CLOSE   = (1 << 6);
-        const CLOSE        = (1 << 7);
-        const CLOSE_WAIT   = (1 << 8);
-        const LAST_ACK     = (1 << 9);
-        const LISTEN       = (1 << 10);
-        const CLOSING      = (1 << 11);
-        const NEW_SYN_RECV = (1 << 12);
-    }
-}
-
-impl State {
-    fn connected() -> State {
-        State::ESTABLISHED | State::SYN_SENT | State::SYN_RECV | State::FIN_WAIT_1
-            | State::FIN_WAIT_2 | State::CLOSE_WAIT | State::LAST_ACK | State::CLOSING
-    }
-}
-
 /// At least one of addr or port should probably be set?
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 pub struct AddrMaskPort {
@@ -67,7 +44,7 @@ pub struct AddrFilter {
 #[derive(Clone, Eq, PartialEq)]
 pub enum Expression {
     Addr(AddrFilter),
-    State(State),
+    State(States),
     AllOf(Vec<Expression>),
     AnyOf(Vec<Expression>),
     Not(Box<Expression>),

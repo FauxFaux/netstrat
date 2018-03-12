@@ -36,7 +36,7 @@ fn render_address(addr: &IpAddr, port: u16) -> String {
 
 fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Result<()> {
     println!(
-        "{}{} src: {}, dst: {}, uid: {}, proc: {:?}",
+        "{}{} src: {}, dst: {}, uid: {}, proc: {:?}, state: {:?}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
@@ -49,7 +49,8 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Res
         render_address(&msg.msg.src_addr()?, msg.msg.src_port()),
         render_address(&msg.msg.dst_addr()?, msg.msg.dst_port()),
         msg.msg.uid,
-        map.get(&msg.msg.inode)
+        map.get(&msg.msg.inode),
+        msg.tcp.and_then(|tcp| tcp.state()),
     );
 
     Ok(())
@@ -153,7 +154,6 @@ Defaults are used if no overriding argument of that group is provided.")
             while let Some(ptr) = recv.next()? {
                 match ptr {
                     Message::InetDiag(ref msg) => dump_proto(proto, msg, &pid_map)?,
-                    _ => unimplemented!(),
                 }
             }
         }

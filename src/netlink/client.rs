@@ -24,6 +24,7 @@ use netlink::Message;
 use netlink::diag::InetDiag;
 use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
+use netlink::tcp::TcpInfo;
 
 const SOCK_DIAG_BY_FAMILY: u16 = 20;
 
@@ -182,7 +183,36 @@ fn extract_diag_msg(buf: &[u8]) -> Result<Message> {
         "not enough space in buf for an InetDiagMsg"
     );
     let msg = unsafe { *(buf.as_ptr() as *const _) };
-    Ok(Message::InetDiag(InetDiag { msg, tcp: None }))
+    let tcp = extract_rta(&buf[main_len..])?;
+    Ok(Message::InetDiag(InetDiag { msg, tcp }))
+}
+
+fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>> {
+    let mut remain = buf;
+    const HEADER_LEN: usize = mem::size_of::<RtAttrHeader>();
+    const INET_DIAG_INFO: c_short = 2;
+    while remain.len() >= HEADER_LEN {
+        let header: RtAttrHeader = unsafe { *(remain.as_ptr() as *const _) };
+        let claimed_len = usize(header.len).expect("positive length");
+        ensure!(claimed_len >= 2, "rta header with invalid len");
+        ensure!(
+            claimed_len <= remain.len(),
+            "rta header out of bounds: {}",
+            header.len
+        );
+        match header.message_type {
+            INET_DIAG_INFO => return Ok(Some(extract_tcp_info(&remain[HEADER_LEN..claimed_len]))),
+            _ => (),
+        }
+        remain = &remain[netlink_msg_align(claimed_len)..];
+    }
+
+    Ok(None)
+}
+
+fn extract_tcp_info(buf: &[u8]) -> TcpInfo {
+    assert!(buf.len() >= mem::size_of::<TcpInfo>());
+    unsafe { *(buf.as_ptr() as *const _) }
 }
 
 #[repr(C)]
