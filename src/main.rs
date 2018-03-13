@@ -157,6 +157,14 @@ Defaults are used if no overriding argument of that group is provided.")
         )?;
     }
 
+    if !matches.is_present("no-header") {
+        println!(concat!(
+            "prot state  recv-q send-q ",
+            "                           source address:port",
+            "                        destination address:port",
+            "   uid    pid/program"))
+    }
+
     let mut socket = netlink::NetlinkDiag::new()?;
     for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
         for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
