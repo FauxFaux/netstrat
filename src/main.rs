@@ -143,12 +143,12 @@ DEFAULTS:
 Defaults are used if no overriding argument of that group is provided.")
         .get_matches();
 
-    if let Some(filter) = matches.value_of("filter") {
-        println!(
-            "{:?}",
-            expr::parse(filter).chain_err(|| "interpreting filter expression")?
-        );
-    }
+    let expression = if let Some(filter) = matches.value_of("filter") {
+        Some(expr::parse(filter).chain_err(|| "interpreting filter expression")?)
+    } else {
+        None
+    };
+
     let (pid_failures, pid_map) = pid_map::walk("/proc")?;
     if pid_failures {
         writeln!(
@@ -164,7 +164,16 @@ Defaults are used if no overriding argument of that group is provided.")
             let mut recv = socket.receive_until_done()?;
             while let Some(ptr) = recv.next()? {
                 match ptr {
-                    Message::InetDiag(ref msg) => dump_proto(proto, msg, &pid_map)?,
+                    Message::InetDiag(ref msg) => {
+                        let include = if let Some(ref expr) = expression {
+                            expr.matches(msg, &pid_map)
+                        } else {
+                            true
+                        };
+                        if include {
+                            dump_proto(proto, msg, &pid_map)?
+                        }
+                    }
                 }
             }
         }

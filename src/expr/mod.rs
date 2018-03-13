@@ -3,7 +3,9 @@ use std::net::IpAddr;
 
 mod nom_util;
 mod parse;
+use netlink::InetDiag;
 use netlink::tcp::States;
+use pid_map::PidMap;
 
 pub use self::parse::parse;
 
@@ -50,6 +52,16 @@ pub enum Expression {
     Not(Box<Expression>),
 }
 
+impl Op {
+    fn apply_u16(&self, left: u16, right: u16) -> bool {
+        use self::Op::*;
+        match *self {
+            Eq => left == right,
+            other => unimplemented!("op: {:?}", other),
+        }
+    }
+}
+
 impl AddrMaskPort {
     #[cfg(test)]
     fn new_str_v4(addr: Option<&str>, mask: Option<u8>, port: Option<u16>) -> AddrMaskPort {
@@ -84,9 +96,33 @@ impl fmt::Debug for AddrMaskPort {
     }
 }
 
+impl AddrFilter {
+    fn matches(&self, addr: &InetDiag) -> bool {
+        use self::Input::*;
+        let u16f = |l, r| self.op.apply_u16(l, r);
+        match self.input {
+            SrcPort => u16f(addr.msg.src_port(), self.addr.port.unwrap_or(0)),
+            DstPort => u16f(addr.msg.dst_port(), self.addr.port.unwrap_or(0)),
+            other => unimplemented!("input: {:?}", other),
+        }
+    }
+}
+
 impl fmt::Debug for AddrFilter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} {:?} {:?}", self.input, self.op, self.addr)
+    }
+}
+
+impl Expression {
+    pub fn matches(&self, addr: &InetDiag, pid_map: &PidMap) -> bool {
+        use self::Expression::*;
+        match *self {
+            Addr(filter) => filter.matches(addr),
+            AllOf(ref list) => list.iter().all(|x| x.matches(addr, pid_map)),
+            AnyOf(ref list) => list.iter().any(|x| x.matches(addr, pid_map)),
+            ref other => unimplemented!("expression: {:?}", other),
+        }
     }
 }
 
