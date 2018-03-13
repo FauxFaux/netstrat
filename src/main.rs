@@ -27,16 +27,18 @@ use errors::*;
 use netlink::Message;
 use pid_map::PidMap;
 
-fn render_address(addr: &IpAddr, port: u16) -> String {
+// Oh, how I wish to punish those ipv4 users.
+fn render_address(addr: &IpAddr) -> String {
     match *addr {
-        IpAddr::V4(addr) => format!("{}:{}", addr, port),
-        IpAddr::V6(addr) => format!("[{}]:{}", addr, port),
+        IpAddr::V4(addr) => format!("{}", addr),
+        IpAddr::V6(addr) => format!("[{}]", addr),
     }
 }
 
 fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Result<()> {
+    let prog_info = map.get(&msg.msg.inode);
     println!(
-        "{}{} src: {}, dst: {}, uid: {}, proc: {:?}, state: {:?}",
+        "{}{} {:6} {:6} {:6} {:>41}:{:<5} {:>41}:{:<5} {:5} {}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
@@ -46,11 +48,20 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Res
             Some(AddressFamily::Inet6) => "6".to_string(),
             other => format!("?? {:?}", other),
         },
-        render_address(&msg.msg.src_addr()?, msg.msg.src_port()),
-        render_address(&msg.msg.dst_addr()?, msg.msg.dst_port()),
+        msg.tcp
+            .and_then(|tcp| tcp.state().map(|tcp| tcp.abbr()))
+            .unwrap_or(""),
+        msg.msg.rqueue,
+        msg.msg.wqueue,
+        render_address(&msg.msg.src_addr()?),
+        msg.msg.src_port(),
+        render_address(&msg.msg.dst_addr()?),
+        msg.msg.dst_port(),
         msg.msg.uid,
-        map.get(&msg.msg.inode),
-        msg.tcp.and_then(|tcp| tcp.state()),
+        match prog_info {
+            Some(info) => format!("{:>5}/{}", info.pid, info.process_name()),
+            None => "     -".to_string(),
+        },
     );
 
     Ok(())
@@ -147,8 +158,8 @@ Defaults are used if no overriding argument of that group is provided.")
     }
 
     let mut socket = netlink::NetlinkDiag::new()?;
-    for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
-        for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
+    for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
+        for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ptr) = recv.next()? {

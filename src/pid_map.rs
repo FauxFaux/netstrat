@@ -11,8 +11,8 @@ pub type PidMap = HashMap<Inode, InodeInfo>;
 
 #[derive(Copy, Clone, Default)]
 pub struct InodeInfo {
-    pid: u32,
-    fd: u32,
+    pub pid: u32,
+    pub fd: u32,
     process: [u8; 16],
 }
 
@@ -107,14 +107,15 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
     Ok((failures, ret))
 }
 
+impl InodeInfo {
+    // TODO: trailing nulls?
+    pub fn process_name(&self) -> String {
+        String::from_utf8_lossy(&self.process.to_vec()).to_string()
+    }
+}
+
 impl fmt::Debug for InodeInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}/fd/{}: {}",
-            self.pid,
-            self.fd,
-            String::from_utf8_lossy(&self.process.to_vec())
-        )
+        write!(f, "{}/fd/{}: {}", self.pid, self.fd, self.process_name())
     }
 }

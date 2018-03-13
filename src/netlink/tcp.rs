@@ -86,6 +86,25 @@ impl State {
             None
         }
     }
+
+    pub fn abbr(&self) -> &'static str {
+        use self::State::*;
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        match *self {
+            Established => "ESTABL",
+            SynSent     => "SYNSNT",
+            SynRecv     => "SYNRCV",
+            FinWait1    => "FINWT1",
+            FinWait2    => "FINWT2",
+            TimeClose   => "TIMCLS",
+            Close       => "CLOSE",
+            CloseWait   => "CLSWAT",
+            LastAck     => "LSTACK",
+            Listen      => "LISTEN",
+            Closing     => "CLOSIN",
+            NewSynRecv  => "NEWSYN",
+        }
+    }
 }
 
 impl States {
