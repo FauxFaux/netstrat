@@ -35,10 +35,9 @@ fn render_address(addr: &IpAddr) -> String {
     }
 }
 
-fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Result<()> {
-    let prog_info = map.get(&msg.msg.inode);
-    println!(
-        "{}{} {:6} {:6} {:6} {:>41}:{:<5} {:>41}:{:<5} {:5} {}",
+fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: Option<&PidMap>) -> Result<()> {
+    print!(
+        "{}{} {:6} {:6} {:6} {:>41}:{:<5} {:>41}:{:<5} {:5}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
@@ -58,11 +57,16 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: &PidMap) -> Res
         render_address(&msg.msg.dst_addr()?),
         msg.msg.dst_port(),
         msg.msg.uid,
-        match prog_info {
-            Some(info) => format!("{:>5}/{}", info.pid, info.process_name()),
-            None => "     -".to_string(),
-        },
     );
+
+    if let Some(map) = map {
+        match map.get(&msg.msg.inode) {
+            Some(info) => print!(" {:>5}/{}", info.pid, info.process_name()),
+            None => print!("     -"),
+        }
+    }
+
+    println!();
 
     Ok(())
 }
@@ -149,20 +153,32 @@ Defaults are used if no overriding argument of that group is provided.")
         None
     };
 
-    let (pid_failures, pid_map) = pid_map::walk("/proc")?;
-    if pid_failures {
-        writeln!(
-            io::stderr(),
-            "Couldn't read some values from /proc, do you have permission?"
-        )?;
-    }
+    let pid_map = if matches.is_present("programs") {
+        let (pid_failures, pid_map) = pid_map::walk("/proc")?;
+        if pid_failures {
+            writeln!(
+                io::stderr(),
+                "Couldn't read some values from /proc, do you have permission?"
+            )?;
+        }
+        Some(pid_map)
+    } else {
+        None
+    };
+    let pid_map = pid_map.as_ref();
 
     if !matches.is_present("no-header") {
-        println!(concat!(
+        print!(concat!(
             "prot state  recv-q send-q ",
             "                           source address:port",
             "                        destination address:port",
-            "   uid    pid/program"))
+            "   uid"
+        ));
+        if pid_map.is_some() {
+            print!("    pid/program");
+        }
+
+        println!();
     }
 
     let mut socket = netlink::NetlinkDiag::new()?;
@@ -174,12 +190,12 @@ Defaults are used if no overriding argument of that group is provided.")
                 match ptr {
                     Message::InetDiag(ref msg) => {
                         let include = if let Some(ref expr) = expression {
-                            expr.matches(msg, &pid_map)
+                            expr.matches(msg, pid_map)
                         } else {
                             true
                         };
                         if include {
-                            dump_proto(proto, msg, &pid_map)?
+                            dump_proto(proto, msg, pid_map)?
                         }
                     }
                 }

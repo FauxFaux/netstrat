@@ -115,7 +115,7 @@ impl fmt::Debug for AddrFilter {
 }
 
 impl Expression {
-    pub fn matches(&self, addr: &InetDiag, pid_map: &PidMap) -> bool {
+    pub fn matches(&self, addr: &InetDiag, pid_map: Option<&PidMap>) -> bool {
         use self::Expression::*;
         match *self {
             Addr(filter) => filter.matches(addr),
