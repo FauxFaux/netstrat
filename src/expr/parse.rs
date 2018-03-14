@@ -9,6 +9,7 @@ use nom::Context;
 use nom::Err;
 use nom::ErrorKind as NomKind;
 use nom::multispace;
+use nom::multispace0;
 use nom::types::CompleteStr;
 
 use errors::*;
@@ -23,15 +24,22 @@ named!(mandatory_whitespace<CompleteStr, CompleteStr>, add_return_error!(ErrorKi
     call!(multispace)
 ));
 
-named!(input<CompleteStr, Input>, add_return_error!(ErrorKind::Custom(1),
+named!(port_input<CompleteStr, Input>,
     alt_complete!(
-        tag!("sport")  => { |_| Input::SrcPort } |
-        tag!("dport")  => { |_| Input::DstPort } |
-        tag!("src")    => { |_| Input::Src } |
-        tag!("dst")    => { |_| Input::Dst } |
-        tag!("any")    => { |_| Input::Either } |
-        tag!("either") => { |_| Input::Either }
-)));
+        tag!("sport") => { |_| Input::SrcPort } |
+        tag!("dport") => { |_| Input::DstPort } |
+        tag!("port")  => { |_| Input::Either }
+));
+
+named!(addr_input<CompleteStr, Input>,
+    alt_complete!(
+        tag!("src")     => { |_| Input::Src } |
+        tag!("source")  => { |_| Input::Src } |
+        tag!("dst")     => { |_| Input::Dst } |
+        tag!("dest")    => { |_| Input::Dst } |
+        tag!("addr")    => { |_| Input::Either } |
+        tag!("address") => { |_| Input::Either }
+));
 
 named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
     alt_complete!(
@@ -92,10 +100,13 @@ fn hex_digit(input: char) -> bool {
     input.is_ascii_hexdigit()
 }
 
-named!(port<CompleteStr, u16>, preceded!(complete!(tag!(":")), alt_complete!(
-    map_res!(take_while1_s!(digit), parse_u16) |
-    tag!("*") => { |_| 0 }
-)));
+named!(port_number<CompleteStr, u16>,
+    alt_complete!(
+        map_res!(take_while1_s!(digit), parse_u16) |
+        tag!("*") => { |_| 0 }
+));
+
+named!(port<CompleteStr, u16>, preceded!(complete!(tag!(":")), port_number));
 
 // TODO: I'd love `do_parse!()` instead of this `map_res!` and helper nonsense,
 // TODO: but it doesn't seem to consume the input, and I don't get why.
@@ -189,15 +200,54 @@ named!(addr_mask_port<CompleteStr, AddrMaskPort>, add_return_error!(ErrorKind::C
         amp_just_port
 )));
 
-named!(addr_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(60),
+named!(op_port<CompleteStr, (Op, u16)>,
     do_parse!(
-        input: input >>
-        mandatory_whitespace >>
+        // TODO: this accepts 'port80' which I'm not happy with
+        op: opt!(op) >>
+        call!(multispace0) >>
+        opt!(tag!(":")) >>
+        port: port_number >>
+        ( ( op.unwrap_or(Op::Eq), port ))
+    )
+);
+
+named!(port_expr<CompleteStr, Expression>,
+    do_parse!(
+        input: port_input >>
+        call!(multispace0) >>
+        op_port: op_port >>
+        (
+            Expression::Addr(AddrFilter {
+                input,
+                op: op_port.0,
+                addr: AddrMaskPort { addr: None, mask: None, port: Some(op_port.1) }
+            })
+        )
+    )
+);
+
+named!(op_addr<CompleteStr, (Op, AddrMaskPort)>,
+    do_parse!(
         op: op >>
-        mandatory_whitespace >>
-        addr: return_error!(ErrorKind::Custom(6000), addr_mask_port) >>
-        ( Expression::Addr(AddrFilter { input, op, addr })) )
+        call!(multispace0) >>
+        addr: amp_addr_opt_opt >>
+        ( (op, addr) )
 ));
+
+named!(whole_addr_expr<CompleteStr, Expression>,
+    do_parse!(
+        input: addr_input >>
+        call!(multispace0) >>
+        op_addr: op_addr >>
+        ( Expression::Addr(AddrFilter { input, op: op_addr.0, addr: op_addr.1 }) )
+    )
+);
+
+named!(addr_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(60),
+    alt_complete!(
+        whole_addr_expr |
+        port_expr
+)));
 
 named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(61),
     do_parse!(
@@ -403,12 +453,12 @@ mod tests {
             Ok((
                 CompleteStr(""),
                 E::Addr(AF {
-                    input: Input::Src,
+                    input: Input::SrcPort,
                     op: Op::Eq,
                     addr: AMP::new_str_v4(None, None, Some(80)),
                 })
             )),
-            addr_expr(CompleteStr("src eq :80"))
+            addr_expr(CompleteStr("sport eq :80"))
         );
     }
 }
