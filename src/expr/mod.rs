@@ -105,7 +105,7 @@ impl AddrMaskPort {
                 unimplemented!("v6 with mask")
             } else {
                 false
-            }
+            },
         }
     }
 }

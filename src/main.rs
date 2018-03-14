@@ -11,6 +11,7 @@ extern crate nix;
 #[macro_use]
 extern crate nom;
 
+use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 use std::net::IpAddr;
@@ -112,7 +113,7 @@ fn run() -> Result<()> {
             .long("family")
             .short("f")
             .takes_value(true)
-            .possible_values(&["all", "inet", "inet6"])
+            .possible_values(&["inet", "inet6"])
             .multiple(true)
             .require_delimiter(true)
             .help("only include these families")
@@ -167,6 +168,31 @@ Defaults are used if no overriding argument of that group is provided.")
     };
     let pid_map = pid_map.as_ref();
 
+    let mut families = HashSet::with_capacity(2);
+    if matches.is_present("4") {
+        families.insert(AddressFamily::Inet);
+    }
+    if matches.is_present("6") {
+        families.insert(AddressFamily::Inet6);
+    }
+    if let Some(values) = matches.values_of("family") {
+        for family in values {
+            families.insert(match family {
+                "inet" => AddressFamily::Inet,
+                "inet6" => AddressFamily::Inet6,
+                other => unreachable!("invalid family value {:?}", other),
+            });
+        }
+    }
+
+    if families.is_empty() {
+        families.extend(&[AddressFamily::Inet, AddressFamily::Inet6]);
+    }
+
+    let mut families: Vec<AddressFamily> = families.into_iter().collect();
+    families.sort_unstable_by_key(|&x| x as i32);
+    let families = families;
+
     if !matches.is_present("no-header") {
         print!(concat!(
             "prot state  recv-q send-q ",
@@ -182,7 +208,7 @@ Defaults are used if no overriding argument of that group is provided.")
     }
 
     let mut socket = netlink::NetlinkDiag::new()?;
-    for &family in &[AddressFamily::Inet, AddressFamily::Inet6] {
+    for family in families {
         for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
