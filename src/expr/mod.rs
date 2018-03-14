@@ -61,6 +61,17 @@ impl Op {
             other => unimplemented!("op: {:?}", other),
         }
     }
+
+    fn apply_addr(&self, left: IpAddr, left_port: u16, right: AddrMaskPort) -> bool {
+        use self::Op::*;
+        match *self {
+            Eq => {
+                right.matches_addr(left)
+                    && (right.port.is_none() || left_port == right.port.unwrap())
+            }
+            other => unimplemented!("op: {:?}", other),
+        }
+    }
 }
 
 impl AddrMaskPort {
@@ -71,6 +82,30 @@ impl AddrMaskPort {
             addr: addr.map(|addr| addr.parse::<Ipv4Addr>().unwrap().into()),
             mask,
             port,
+        }
+    }
+
+    fn matches_addr(self, msg: IpAddr) -> bool {
+        let filter = self.addr.expect("filter bug: address absent");
+
+        let mask = match self.mask {
+            Some(mask) => mask,
+            None => return filter == msg,
+        };
+
+        // TODO: probably totally wrong / backwards
+        match filter {
+            IpAddr::V4(filter) => if let IpAddr::V4(msg) = msg {
+                let mask: u32 = (1 << (32 - mask)) - 1;
+                u32::from(msg) & mask == u32::from(filter) & mask
+            } else {
+                false
+            },
+            IpAddr::V6(filter) => if let IpAddr::V6(_msg) = msg {
+                unimplemented!("v6 with mask")
+            } else {
+                false
+            }
         }
     }
 }
@@ -109,7 +144,13 @@ impl AddrFilter {
         match self.input {
             SrcPort => op.apply_u16(msg_sport, filter_port),
             DstPort => op.apply_u16(msg_dport, filter_port),
-            EitherPort => op.apply_u16(msg_dport, filter_port) || op.apply_u16(msg_sport, filter_port),
+            EitherPort => {
+                op.apply_u16(msg_dport, filter_port) || op.apply_u16(msg_sport, filter_port)
+            }
+            Src => addr.msg
+                .src_addr()
+                .map(|addr| op.apply_addr(addr, msg_sport, self.addr))
+                .unwrap_or(false),
             other => unimplemented!("input: {:?}", other),
         }
     }
