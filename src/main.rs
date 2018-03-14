@@ -62,7 +62,7 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: Option<&PidMap>
     if let Some(map) = map {
         match map.get(&msg.msg.inode) {
             Some(info) => print!(" {:>5}/{}", info.pid, info.process_name()),
-            None => print!("     -"),
+            None => print!("      -"),
         }
     }
 
