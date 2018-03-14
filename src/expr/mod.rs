@@ -23,9 +23,10 @@ pub enum Op {
 pub enum Input {
     Src,
     Dst,
+    EitherAddr,
     SrcPort,
     DstPort,
-    Either,
+    EitherPort,
 }
 
 /// At least one of addr or port should probably be set?
@@ -99,10 +100,16 @@ impl fmt::Debug for AddrMaskPort {
 impl AddrFilter {
     fn matches(&self, addr: &InetDiag) -> bool {
         use self::Input::*;
-        let u16f = |l, r| self.op.apply_u16(l, r);
+
+        let op = self.op;
+        let msg_sport = addr.msg.src_port();
+        let msg_dport = addr.msg.dst_port();
+        let filter_port = self.addr.port.unwrap_or(0);
+
         match self.input {
-            SrcPort => u16f(addr.msg.src_port(), self.addr.port.unwrap_or(0)),
-            DstPort => u16f(addr.msg.dst_port(), self.addr.port.unwrap_or(0)),
+            SrcPort => op.apply_u16(msg_sport, filter_port),
+            DstPort => op.apply_u16(msg_dport, filter_port),
+            EitherPort => op.apply_u16(msg_dport, filter_port) || op.apply_u16(msg_sport, filter_port),
             other => unimplemented!("input: {:?}", other),
         }
     }

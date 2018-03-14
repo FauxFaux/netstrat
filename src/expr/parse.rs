@@ -28,7 +28,7 @@ named!(port_input<CompleteStr, Input>,
     alt_complete!(
         tag!("sport") => { |_| Input::SrcPort } |
         tag!("dport") => { |_| Input::DstPort } |
-        tag!("port")  => { |_| Input::Either }
+        tag!("port")  => { |_| Input::EitherPort }
 ));
 
 named!(addr_input<CompleteStr, Input>,
@@ -37,8 +37,8 @@ named!(addr_input<CompleteStr, Input>,
         tag!("source")  => { |_| Input::Src } |
         tag!("dst")     => { |_| Input::Dst } |
         tag!("dest")    => { |_| Input::Dst } |
-        tag!("addr")    => { |_| Input::Either } |
-        tag!("address") => { |_| Input::Either }
+        tag!("address") => { |_| Input::EitherAddr } |
+        tag!("addr")    => { |_| Input::EitherAddr }
 ));
 
 named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
