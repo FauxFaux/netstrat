@@ -72,8 +72,20 @@ named!(op<CompleteStr, Op>, add_return_error!(ErrorKind::Custom(2),
 named!(state<CompleteStr, States>, add_return_error!(ErrorKind::Custom(3),
     alt_complete!(
         tag!("connected")    => { |_| States::connected() } |
-        tag!("established")  => { |_| States::ESTABLISHED }
-    // TODO
+        tag!("synchronised") => { |_| States::synchronised() } |
+        tag!("bucket")       => { |_| States::bucket() } |
+        tag!("big")          => { |_| States::big() } |
+        tag!("established")  => { |_| States::ESTABLISHED } |
+        tag!("syn-sent")     => { |_| States::SYN_SENT } |
+        tag!("syn-recv")     => { |_| States::SYN_RECV } |
+        tag!("fin-wait-1")   => { |_| States::FIN_WAIT_1 } |
+        tag!("fin-wait-2")   => { |_| States::FIN_WAIT_2 } |
+        tag!("time-wait")    => { |_| States::TIME_CLOSE } |
+        tag!("closed")       => { |_| States::CLOSE } |
+        tag!("close-wait")   => { |_| States::CLOSE_WAIT } |
+        tag!("last-ack")     => { |_| States::LAST_ACK } |
+        tag!("listening")    => { |_| States::LISTEN } |
+        tag!("closing")      => { |_| States::CLOSING }
 )));
 
 fn parse_u8(input: CompleteStr) -> StdResult<u8, ParseIntError> {

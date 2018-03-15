@@ -110,9 +110,31 @@ impl State {
 }
 
 impl States {
+    /*
+    ss shorthands:
+sync established|syn-recv|         fin-wait-*|       time-wait|close-wait|last-ack|       closing
+conn established|syn-sent|syn-recv|fin-wait-*|       time-wait|close-wait|last-ack|       closing
+buck             syn-recv|                           time-wait
+big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-ack|listen|closing
+    */
+
+    pub fn synchronised() -> States {
+        States::ESTABLISHED | States::SYN_SENT | States::FIN_WAIT_1 | States::FIN_WAIT_2
+            | States::CLOSE_WAIT | States::LAST_ACK | States::CLOSING
+    }
+
     pub fn connected() -> States {
-        States::ESTABLISHED | States::SYN_SENT | States::SYN_RECV | States::FIN_WAIT_1
-            | States::FIN_WAIT_2 | States::CLOSE_WAIT | States::LAST_ACK | States::CLOSING
+        States::synchronised() | States::SYN_RECV
+    }
+
+    pub fn bucket() -> States {
+        States::SYN_RECV | States::TIME_CLOSE
+    }
+
+    pub fn big() -> States {
+        States::ESTABLISHED | States::SYN_SENT | States::FIN_WAIT_1 | States::FIN_WAIT_2
+            | States::CLOSE | States::CLOSE_WAIT | States::LAST_ACK | States::LISTEN
+            | States::CLOSING
     }
 
     pub fn matches(&self, msg: &InetDiag) -> bool {
