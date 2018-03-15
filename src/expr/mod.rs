@@ -167,9 +167,10 @@ impl Expression {
         use self::Expression::*;
         match *self {
             Addr(filter) => filter.matches(addr),
+            State(filter) => filter.matches(addr),
             AllOf(ref list) => list.iter().all(|x| x.matches(addr, pid_map)),
             AnyOf(ref list) => list.iter().any(|x| x.matches(addr, pid_map)),
-            ref other => unimplemented!("expression: {:?}", other),
+            Not(ref expr) => unimplemented!("not({:?})", expr),
         }
     }
 }

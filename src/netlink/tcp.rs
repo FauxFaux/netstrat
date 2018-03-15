@@ -1,5 +1,7 @@
 use std::mem;
 
+use netlink::diag::InetDiag;
+
 /// Fields available as of Linux 3.2; still compatible to 4.16 (2018)
 /// (although only through alignment weirdness).
 #[repr(C)]
@@ -111,6 +113,15 @@ impl States {
     pub fn connected() -> States {
         States::ESTABLISHED | States::SYN_SENT | States::SYN_RECV | States::FIN_WAIT_1
             | States::FIN_WAIT_2 | States::CLOSE_WAIT | States::LAST_ACK | States::CLOSING
+    }
+
+    pub fn matches(&self, msg: &InetDiag) -> bool {
+        if let Some(msg) = msg.tcp.and_then(|tcp| State::from_u8(tcp.state)) {
+            self.contains(States::from_bits_truncate(1 << msg as usize))
+        } else {
+            // TODO: not TCP, or not valid?
+            true
+        }
     }
 }
 
