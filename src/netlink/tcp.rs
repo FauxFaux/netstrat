@@ -53,8 +53,8 @@ pub enum State {
     SynRecv = 3,
     FinWait1 = 4,
     FinWait2 = 5,
-    TimeClose = 6,
-    Close = 7,
+    TimeWait = 6,
+    Closed = 7,
     CloseWait = 8,
     LastAck = 9,
     Listen = 10,
@@ -69,8 +69,8 @@ bitflags! {
         const SYN_RECV     = (1 << State::SynRecv     as usize);
         const FIN_WAIT_1   = (1 << State::FinWait1    as usize);
         const FIN_WAIT_2   = (1 << State::FinWait2    as usize);
-        const TIME_CLOSE   = (1 << State::TimeClose   as usize);
-        const CLOSE        = (1 << State::Close       as usize);
+        const TIME_WAIT    = (1 << State::TimeWait    as usize);
+        const CLOSED       = (1 << State::Closed      as usize);
         const CLOSE_WAIT   = (1 << State::CloseWait   as usize);
         const LAST_ACK     = (1 << State::LastAck     as usize);
         const LISTEN       = (1 << State::Listen      as usize);
@@ -80,7 +80,7 @@ bitflags! {
 }
 
 impl State {
-    fn from_u8(val: u8) -> Option<State> {
+    pub fn from_u8(val: u8) -> Option<State> {
         if val >= 1 || val <= 12 {
             // Safe so long as 'val' is in range, which is manually checked here.
             Some(unsafe { mem::transmute(val) })
@@ -98,8 +98,8 @@ impl State {
             SynRecv     => "SYNRCV",
             FinWait1    => "FINWT1",
             FinWait2    => "FINWT2",
-            TimeClose   => "TIMCLS",
-            Close       => "CLOSE",
+            TimeWait    => "TIMWAT",
+            Closed      => "CLOSED",
             CloseWait   => "CLSWAT",
             LastAck     => "LSTACK",
             Listen      => "LISTEN",
@@ -128,12 +128,12 @@ big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-a
     }
 
     pub fn bucket() -> States {
-        States::SYN_RECV | States::TIME_CLOSE
+        States::SYN_RECV | States::TIME_WAIT
     }
 
     pub fn big() -> States {
         States::ESTABLISHED | States::SYN_SENT | States::FIN_WAIT_1 | States::FIN_WAIT_2
-            | States::CLOSE | States::CLOSE_WAIT | States::LAST_ACK | States::LISTEN
+            | States::CLOSED | States::CLOSE_WAIT | States::LAST_ACK | States::LISTEN
             | States::CLOSING
     }
 

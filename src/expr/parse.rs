@@ -80,8 +80,8 @@ named!(state<CompleteStr, States>, add_return_error!(ErrorKind::Custom(3),
         tag!("syn-recv")     => { |_| States::SYN_RECV } |
         tag!("fin-wait-1")   => { |_| States::FIN_WAIT_1 } |
         tag!("fin-wait-2")   => { |_| States::FIN_WAIT_2 } |
-        tag!("time-wait")    => { |_| States::TIME_CLOSE } |
-        tag!("closed")       => { |_| States::CLOSE } |
+        tag!("time-wait")    => { |_| States::TIME_WAIT } |
+        tag!("closed")       => { |_| States::CLOSED } |
         tag!("close-wait")   => { |_| States::CLOSE_WAIT } |
         tag!("last-ack")     => { |_| States::LAST_ACK } |
         tag!("listening")    => { |_| States::LISTEN } |

@@ -1,5 +1,7 @@
 // Trivial helper methods:
 #![feature(ip_constructors)]
+// Trivial helper methods:
+#![feature(option_filter)]
 #[macro_use]
 extern crate bitflags;
 extern crate cast;
@@ -26,6 +28,7 @@ mod netlink;
 
 use errors::*;
 use netlink::Message;
+use netlink::tcp::State;
 use pid_map::PidMap;
 
 // Oh, how I wish to punish those ipv4 users.
@@ -48,8 +51,11 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: Option<&PidMap>
             Some(AddressFamily::Inet6) => "6".to_string(),
             other => format!("?? {:?}", other),
         },
-        msg.tcp
-            .and_then(|tcp| tcp.state().map(|tcp| tcp.abbr()))
+        msg.msg
+            .state()
+            // Don't display "CLOSED" for closed UDP sockets, as this also means "Listening".
+            .filter(|&state| SockProtocol::Udp != proto || state != State::Closed)
+            .map(|state| state.abbr())
             .unwrap_or(""),
         msg.msg.rqueue,
         msg.msg.wqueue,

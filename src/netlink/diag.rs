@@ -11,6 +11,7 @@ use libc::c_short;
 use nix::sys::socket::AddressFamily;
 
 use errors::*;
+use netlink::tcp::State;
 use netlink::tcp::TcpInfo;
 
 #[repr(C)]
@@ -101,6 +102,10 @@ impl InetDiagMsg {
 
     pub fn dst_addr(&self) -> Result<IpAddr> {
         to_address(self.family, &self.id.dst_be)
+    }
+
+    pub fn state(&self) -> Option<State> {
+        State::from_u8(self.state)
     }
 }
 
