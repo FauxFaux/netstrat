@@ -138,10 +138,10 @@ big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-a
     }
 
     pub fn matches(&self, msg: &InetDiag) -> bool {
-        if let Some(msg) = msg.tcp.and_then(|tcp| State::from_u8(tcp.state)) {
-            self.contains(States::from_bits_truncate(1 << msg as usize))
+        if let Some(state) = msg.msg.state() {
+            self.contains(States::from_bits_truncate(1 << state as usize))
         } else {
-            // TODO: not TCP, or not valid?
+            // TODO: not valid?
             true
         }
     }
