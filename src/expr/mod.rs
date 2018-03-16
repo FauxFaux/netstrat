@@ -100,7 +100,7 @@ impl AddrMaskPort {
             } else {
                 false
             },
-            IpAddr::V6(filter) => if let IpAddr::V6(_msg) = msg {
+            IpAddr::V6(_filter) => if let IpAddr::V6(_msg) = msg {
                 unimplemented!("v6 with mask")
             } else {
                 false

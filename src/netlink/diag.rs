@@ -7,6 +7,7 @@ use cast::i32;
 use libc::AF_INET;
 use libc::AF_INET6;
 use libc::c_int;
+use libc::c_short;
 use nix::sys::socket::AddressFamily;
 
 use errors::*;
@@ -55,6 +56,32 @@ pub struct InetDiag {
     pub tcp: Option<TcpInfo>,
 }
 
+#[derive(Copy, Clone, Debug)]
+#[repr(i16)]
+#[allow(dead_code)]
+pub enum RtaMessageType {
+    None,
+    MemInfo,
+    Info,
+    VegasInfo,
+    Cong,
+    ToS,
+    TClass,
+    SkMemInfo,
+    Shutdown,
+    DcTcpInfo,
+    Protocol,
+    SkV6Only,
+    Locals,
+    Peers,
+    Pad,
+    Mark,
+    BbrInfo,
+    ClassId,
+    Md5Sig,
+    MAX,
+}
+
 impl InetDiagMsg {
     pub fn family(&self) -> Option<AddressFamily> {
         AddressFamily::from_i32(i32(self.family))
@@ -74,6 +101,16 @@ impl InetDiagMsg {
 
     pub fn dst_addr(&self) -> Result<IpAddr> {
         to_address(self.family, &self.id.dst_be)
+    }
+}
+
+impl RtaMessageType {
+    pub fn from_short(i: c_short) -> Option<RtaMessageType> {
+        if i >= 0 && i < RtaMessageType::MAX as c_short {
+            Some(unsafe { mem::transmute(i) })
+        } else {
+            None
+        }
     }
 }
 

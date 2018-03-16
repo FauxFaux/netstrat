@@ -190,7 +190,6 @@ fn extract_diag_msg(buf: &[u8]) -> Result<Message> {
 fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>> {
     let mut remain = buf;
     const HEADER_LEN: usize = mem::size_of::<RtAttrHeader>();
-    const INET_DIAG_INFO: c_short = 2;
     while remain.len() >= HEADER_LEN {
         let header: RtAttrHeader = unsafe { *(remain.as_ptr() as *const _) };
         let claimed_len = usize(header.len).expect("positive length");
@@ -200,9 +199,12 @@ fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>> {
             "rta header out of bounds: {}",
             header.len
         );
-        match header.message_type {
-            INET_DIAG_INFO => return Ok(Some(extract_tcp_info(&remain[HEADER_LEN..claimed_len]))),
-            _ => (),
+
+        use netlink::diag::RtaMessageType;
+        use netlink::diag::RtaMessageType::*;
+        match RtaMessageType::from_short(header.message_type) {
+            Some(Info) => return Ok(Some(extract_tcp_info(&remain[HEADER_LEN..claimed_len]))),
+            _other => (), // println!("unexpected msg type: {:?}", other),
         }
         remain = &remain[netlink_msg_align(claimed_len)..];
     }
