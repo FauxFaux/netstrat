@@ -93,10 +93,9 @@ impl AddrMaskPort {
             None => return filter == msg,
         };
 
-        // TODO: probably totally wrong / backwards
         match filter {
             IpAddr::V4(filter) => if let IpAddr::V4(msg) = msg {
-                let mask: u32 = (1 << (32 - mask)) - 1;
+                let mask: u32 = !((1 << (32 - mask)) - 1);
                 u32::from(msg) & mask == u32::from(filter) & mask
             } else {
                 false
@@ -204,4 +203,24 @@ fn write_list(f: &mut fmt::Formatter, list: &[Expression], delim: &str) -> fmt::
     write!(f, ")")?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn mask_eq() {
+        use super::AddrMaskPort;
+
+        let amp = AddrMaskPort::new_str_v4(Some("192.168.44.7"), None, None);
+        assert!(amp.matches_addr("192.168.44.7".parse().unwrap()));
+        assert!(!amp.matches_addr("192.168.4.7".parse().unwrap()));
+
+        let amp = AddrMaskPort::new_str_v4(Some("192.168.32.0"), Some(24), None);
+        assert!(amp.matches_addr("192.168.32.4".parse().unwrap()));
+        assert!(!amp.matches_addr("192.168.3.4".parse().unwrap()));
+
+        let amp = AddrMaskPort::new_str_v4(Some("192.168.32.0"), Some(32), None);
+        assert!(amp.matches_addr("192.168.32.0".parse().unwrap()));
+        assert!(!amp.matches_addr("192.168.32.1".parse().unwrap()));
+    }
 }
