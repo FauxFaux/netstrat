@@ -172,6 +172,35 @@ impl Expression {
             Not(ref expr) => unimplemented!("not({:?})", expr),
         }
     }
+
+    pub fn simplify(self) -> Expression {
+        use self::Expression::*;
+        let run = match self {
+            AllOf(list) => AllOf(simplify_list(list)),
+            AnyOf(list) => AnyOf(simplify_list(list)),
+            other => other,
+        };
+
+        let run = match run {
+            AllOf(list) => if 1 == list.len() {
+                list.into_iter().next().unwrap()
+            } else {
+                AllOf(list)
+            },
+            AnyOf(list) => if 1 == list.len() {
+                list.into_iter().next().unwrap()
+            } else {
+                AnyOf(list)
+            },
+            other => other,
+        };
+
+        run
+    }
+}
+
+fn simplify_list(list: Vec<Expression>) -> Vec<Expression> {
+    list.into_iter().map(Expression::simplify).collect()
 }
 
 impl fmt::Debug for Expression {
@@ -189,10 +218,6 @@ impl fmt::Debug for Expression {
 }
 
 fn write_list(f: &mut fmt::Formatter, list: &[Expression], delim: &str) -> fmt::Result {
-    if 1 == list.len() {
-        return write!(f, "{:?}", list[0]);
-    }
-
     let mut it = list.iter();
     write!(f, "({:?}", it.next().unwrap())?;
 

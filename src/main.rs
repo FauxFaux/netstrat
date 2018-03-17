@@ -155,7 +155,11 @@ Defaults are used if no overriding argument of that group is provided.")
         .get_matches();
 
     let expression = if let Some(filter) = matches.value_of("filter") {
-        Some(expr::parse(filter).chain_err(|| "interpreting filter expression")?)
+        Some(
+            expr::parse(filter)
+                .chain_err(|| "interpreting filter expression")?
+                .simplify(),
+        )
     } else {
         None
     };
