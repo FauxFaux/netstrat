@@ -178,6 +178,7 @@ impl Expression {
         let run = match self {
             AllOf(list) => AllOf(simplify_list(list)),
             AnyOf(list) => AnyOf(simplify_list(list)),
+            Not(item) => Not(item.simplify()),
             other => other,
         };
 
