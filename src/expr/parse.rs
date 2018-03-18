@@ -269,6 +269,14 @@ named!(state_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(
         ( Expression::State(state) )
 )));
 
+named!(not_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(70),
+    do_parse!(
+        tag!("not") >>
+        call!(multispace) >>
+        exp: single_expr >>
+        ( Expression::Not(Box::new(exp)) )
+)));
+
 named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(71),
     alt_complete!(
         delimited!(
@@ -276,6 +284,7 @@ named!(single_expr<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom
             return_error!(ErrorKind::Custom(7100), root),
             tag!(")")
         ) |
+        not_expr |
         addr_expr |
         state_expr
 )));

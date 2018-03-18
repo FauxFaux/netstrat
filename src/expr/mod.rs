@@ -169,7 +169,7 @@ impl Expression {
             State(filter) => filter.matches(addr),
             AllOf(ref list) => list.iter().all(|x| x.matches(addr, pid_map)),
             AnyOf(ref list) => list.iter().any(|x| x.matches(addr, pid_map)),
-            Not(ref expr) => unimplemented!("not({:?})", expr),
+            Not(ref expr) => !expr.matches(addr, pid_map),
         }
     }
 
@@ -178,7 +178,7 @@ impl Expression {
         let run = match self {
             AllOf(list) => AllOf(simplify_list(list)),
             AnyOf(list) => AnyOf(simplify_list(list)),
-            Not(item) => Not(item.simplify()),
+            Not(item) => Not(Box::new(item.simplify())),
             other => other,
         };
 
