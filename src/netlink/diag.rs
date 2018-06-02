@@ -4,10 +4,10 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 
 use cast::i32;
-use libc::AF_INET;
-use libc::AF_INET6;
 use libc::c_int;
 use libc::c_short;
+use libc::AF_INET6;
+use libc::AF_INET;
 use nix::sys::socket::AddressFamily;
 
 use errors::*;

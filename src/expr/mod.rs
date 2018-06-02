@@ -3,8 +3,8 @@ use std::net::IpAddr;
 
 mod nom_util;
 mod parse;
-use netlink::InetDiag;
 use netlink::tcp::States;
+use netlink::InetDiag;
 use pid_map::PidMap;
 
 pub use self::parse::parse;
@@ -146,7 +146,8 @@ impl AddrFilter {
             EitherPort => {
                 op.apply_u16(msg_dport, filter_port) || op.apply_u16(msg_sport, filter_port)
             }
-            Src => addr.msg
+            Src => addr
+                .msg
                 .src_addr()
                 .map(|addr| op.apply_addr(addr, msg_sport, self.addr))
                 .unwrap_or(false),

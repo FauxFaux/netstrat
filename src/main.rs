@@ -23,12 +23,12 @@ use nix::sys::socket::SockProtocol;
 
 mod errors;
 mod expr;
-mod pid_map;
 mod netlink;
+mod pid_map;
 
 use errors::*;
-use netlink::Message;
 use netlink::tcp::State;
+use netlink::Message;
 use pid_map::PidMap;
 
 // Oh, how I wish to punish those ipv4 users.

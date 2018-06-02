@@ -5,12 +5,12 @@ use std::net::Ipv6Addr;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
 
-use nom::Context;
-use nom::Err;
-use nom::ErrorKind as NomKind;
 use nom::multispace;
 use nom::multispace0;
 use nom::types::CompleteStr;
+use nom::Context;
+use nom::Err;
+use nom::ErrorKind as NomKind;
 
 use errors::*;
 use expr::AddrFilter;
@@ -432,7 +432,7 @@ mod tests {
                     input: Input::Src,
                     op: Op::Eq,
                     addr: AMP::new_str_v4(Some("0.0.0.0"), Some(0), Some(80)),
-                })
+                },)
             )),
             addr_expr(CompleteStr("src eq 0.0.0.0/0:80"))
         );
@@ -447,7 +447,7 @@ mod tests {
                     input: Input::Src,
                     op: Op::Eq,
                     addr: AMP::new_str_v4(Some("0.0.0.0"), None, Some(80)),
-                })
+                },)
             )),
             addr_expr(CompleteStr("src eq 0.0.0.0:80"))
         );
@@ -462,7 +462,7 @@ mod tests {
                     input: Input::Src,
                     op: Op::Eq,
                     addr: AMP::new_str_v4(Some("0.0.0.0"), None, None),
-                })
+                },)
             )),
             addr_expr(CompleteStr("src eq 0.0.0.0"))
         );
@@ -477,7 +477,7 @@ mod tests {
                     input: Input::SrcPort,
                     op: Op::Eq,
                     addr: AMP::new_str_v4(None, None, Some(80)),
-                })
+                },)
             )),
             addr_expr(CompleteStr("sport eq :80"))
         );

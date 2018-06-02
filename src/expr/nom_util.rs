@@ -1,9 +1,9 @@
 //! Copied from nom::util so as to use CompleteStr, as the utilities
 //! accept `&[u8]` and converting sucks.
 
+use nom::types::CompleteStr;
 use nom::Context;
 use nom::ErrorKind;
-use nom::types::CompleteStr;
 
 pub fn prepare_errors<E: Clone>(
     input: &str,

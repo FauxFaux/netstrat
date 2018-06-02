@@ -79,10 +79,12 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
                 stat_path.push("stat");
                 let mut buf = [0u8; 32];
                 fs::File::open(stat_path)?.read_exact(&mut buf)?;
-                let start = buf.iter()
+                let start = buf
+                    .iter()
                     .position(|&c| b'(' == c)
                     .ok_or("invalid stat: (")? + 1;
-                let end = buf.iter()
+                let end = buf
+                    .iter()
                     .skip(start)
                     .position(|&c| b')' == c)
                     .ok_or("invalid stat: )")?;

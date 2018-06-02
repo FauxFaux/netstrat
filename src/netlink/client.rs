@@ -20,11 +20,11 @@ use nix::sys::socket::SockType;
 use nix::sys::uio::IoVec;
 
 use errors::*;
-use netlink::Message;
 use netlink::diag::InetDiag;
 use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
 use netlink::tcp::TcpInfo;
+use netlink::Message;
 
 const SOCK_DIAG_BY_FAMILY: u16 = 20;
 

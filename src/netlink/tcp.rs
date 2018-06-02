@@ -119,8 +119,13 @@ big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-a
     */
 
     pub fn synchronised() -> States {
-        States::ESTABLISHED | States::SYN_SENT | States::FIN_WAIT_1 | States::FIN_WAIT_2
-            | States::CLOSE_WAIT | States::LAST_ACK | States::CLOSING
+        States::ESTABLISHED
+            | States::SYN_SENT
+            | States::FIN_WAIT_1
+            | States::FIN_WAIT_2
+            | States::CLOSE_WAIT
+            | States::LAST_ACK
+            | States::CLOSING
     }
 
     pub fn connected() -> States {
@@ -132,8 +137,14 @@ big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-a
     }
 
     pub fn big() -> States {
-        States::ESTABLISHED | States::SYN_SENT | States::FIN_WAIT_1 | States::FIN_WAIT_2
-            | States::CLOSED | States::CLOSE_WAIT | States::LAST_ACK | States::LISTEN
+        States::ESTABLISHED
+            | States::SYN_SENT
+            | States::FIN_WAIT_1
+            | States::FIN_WAIT_2
+            | States::CLOSED
+            | States::CLOSE_WAIT
+            | States::LAST_ACK
+            | States::LISTEN
             | States::CLOSING
     }
 
