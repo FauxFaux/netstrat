@@ -9,9 +9,6 @@ use libc;
 use libc::c_int;
 use libc::c_short;
 
-use libc::NLM_F_DUMP;
-use libc::NLM_F_REQUEST;
-
 use nix;
 use nix::sys::socket;
 use nix::sys::socket::AddressFamily;
@@ -23,6 +20,7 @@ use errors::*;
 use netlink::diag::InetDiag;
 use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
+use netlink::netlink_consts::*;
 use netlink::tcp::TcpInfo;
 use netlink::Message;
 
@@ -39,7 +37,7 @@ impl NetlinkDiag {
                 libc::socket(
                     AddressFamily::Netlink as c_int,
                     SockType::Datagram as c_int,
-                    libc::NETLINK_INET_DIAG,
+                    NETLINK_INET_DIAG,
                 )
             })? as RawFd,
             //fd: socket(AddressFamily::Netlink, SockType::Datagram, SockFlag::SOCK_CLOEXEC, SockProtocol::from(libc::NETLINK_INET_DIAG))
