@@ -4,13 +4,13 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 
 use cast::i32;
+use failure::Error;
 use libc::c_int;
 use libc::c_short;
 use libc::AF_INET;
 use libc::AF_INET6;
 use nix::sys::socket::AddressFamily;
 
-use errors::*;
 use netlink::tcp::State;
 use netlink::tcp::TcpInfo;
 
@@ -96,11 +96,11 @@ impl InetDiagMsg {
         u16::from_be(self.id.dport_be)
     }
 
-    pub fn src_addr(&self) -> Result<IpAddr> {
+    pub fn src_addr(&self) -> Result<IpAddr, Error> {
         to_address(self.family, &self.id.src_be)
     }
 
-    pub fn dst_addr(&self) -> Result<IpAddr> {
+    pub fn dst_addr(&self) -> Result<IpAddr, Error> {
         to_address(self.family, &self.id.dst_be)
     }
 
@@ -119,7 +119,7 @@ impl RtaMessageType {
     }
 }
 
-fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr> {
+fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr, Error> {
     Ok(match family as c_int {
         AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(data[0]))),
         AF_INET6 => {

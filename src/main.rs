@@ -1,13 +1,9 @@
-// Trivial helper methods:
-#![feature(ip_constructors)]
-// Trivial helper methods:
-#![feature(option_filter)]
 #[macro_use]
 extern crate bitflags;
 extern crate cast;
 extern crate clap;
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 extern crate libc;
 extern crate nix;
 #[macro_use]
@@ -18,15 +14,15 @@ use std::io;
 use std::io::Write;
 use std::net::IpAddr;
 
+use failure::Error;
+use failure::ResultExt;
 use nix::sys::socket::AddressFamily;
 use nix::sys::socket::SockProtocol;
 
-mod errors;
 mod expr;
 mod netlink;
 mod pid_map;
 
-use errors::*;
 use netlink::tcp::State;
 use netlink::Message;
 use pid_map::PidMap;
@@ -39,7 +35,11 @@ fn render_address(addr: &IpAddr) -> String {
     }
 }
 
-fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: Option<&PidMap>) -> Result<()> {
+fn dump_proto(
+    proto: SockProtocol,
+    msg: &netlink::InetDiag,
+    map: Option<&PidMap>,
+) -> Result<(), Error> {
     print!(
         "{}{} {:6} {:6} {:6} {:>41}:{:<5} {:>41}:{:<5} {:5}",
         match proto {
@@ -78,7 +78,7 @@ fn dump_proto(proto: SockProtocol, msg: &netlink::InetDiag, map: Option<&PidMap>
     Ok(())
 }
 
-fn run() -> Result<()> {
+fn main() -> Result<(), Error> {
     use clap::Arg;
     let matches = clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
@@ -176,7 +176,7 @@ Defaults are used if no overriding argument of that group is provided.",
     let expression = if let Some(filter) = matches.value_of("filter") {
         Some(
             expr::parse(filter)
-                .chain_err(|| "interpreting filter expression")?
+                .with_context(|_| format_err!("interpreting filter expression"))?
                 .simplify(),
         )
     } else {
@@ -259,5 +259,3 @@ Defaults are used if no overriding argument of that group is provided.",
     }
     Ok(())
 }
-
-quick_main!(run);

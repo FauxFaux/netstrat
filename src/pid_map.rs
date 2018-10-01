@@ -4,7 +4,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use errors::*;
+use failure::Error;
 
 pub type Inode = u32;
 pub type PidMap = HashMap<Inode, InodeInfo>;
@@ -16,7 +16,7 @@ pub struct InodeInfo {
     process: [u8; 16],
 }
 
-pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
+pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap), Error> {
     let mut failures = false;
     let mut ret = HashMap::with_capacity(512);
     let root = root.as_ref();
@@ -82,13 +82,13 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
                 let start = buf
                     .iter()
                     .position(|&c| b'(' == c)
-                    .ok_or("invalid stat: (")?
+                    .ok_or_else(|| format_err!("invalid stat: ("))?
                     + 1;
                 let end = buf
                     .iter()
                     .skip(start)
                     .position(|&c| b')' == c)
-                    .ok_or("invalid stat: )")?;
+                    .ok_or_else(|| format_err!("invalid stat: )"))?;
                 let mut name_buf = [0u8; 16];
                 for i in start..(start + end) {
                     name_buf[i - start] = buf[i];

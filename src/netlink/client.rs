@@ -4,11 +4,10 @@ use std::os::unix::io::RawFd;
 use cast::u16;
 use cast::u32;
 use cast::usize;
-
+use failure::Error;
 use libc;
 use libc::c_int;
 use libc::c_short;
-
 use nix;
 use nix::sys::socket;
 use nix::sys::socket::AddressFamily;
@@ -16,7 +15,6 @@ use nix::sys::socket::SockProtocol;
 use nix::sys::socket::SockType;
 use nix::sys::uio::IoVec;
 
-use errors::*;
 use netlink::diag::InetDiag;
 use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
@@ -31,7 +29,7 @@ pub struct NetlinkDiag {
 }
 
 impl NetlinkDiag {
-    pub fn new() -> Result<NetlinkDiag> {
+    pub fn new() -> Result<NetlinkDiag, Error> {
         Ok(NetlinkDiag {
             fd: nix::errno::Errno::result(unsafe {
                 libc::socket(
@@ -45,7 +43,7 @@ impl NetlinkDiag {
         })
     }
 
-    pub fn ask_ip(&mut self, family: AddressFamily, protocol: SockProtocol) -> Result<()> {
+    pub fn ask_ip(&mut self, family: AddressFamily, protocol: SockProtocol) -> Result<(), Error> {
         const INET_DIAG_INFO: u8 = 2;
 
         let header = NetlinkMessageHeader {
@@ -82,7 +80,7 @@ impl NetlinkDiag {
         Ok(())
     }
 
-    pub fn receive_until_done(&mut self) -> Result<Recv> {
+    pub fn receive_until_done(&mut self) -> Result<Recv, Error> {
         let mut ret = Recv {
             fd: self.fd,
             buf: [0u8; 8 * 1024],
@@ -104,7 +102,7 @@ pub struct Recv {
 }
 
 impl Recv {
-    fn recv(&mut self) -> Result<()> {
+    fn recv(&mut self) -> Result<(), Error> {
         self.valid_bytes = socket::recv(self.fd, &mut self.buf, socket::MsgFlags::empty())?;
         self.ptr = 0;
         Ok(())
@@ -135,7 +133,7 @@ impl Recv {
         unsafe { &*(self.buf[self.ptr..].as_ptr() as *const _) }
     }
 
-    pub fn next(&mut self) -> Result<Option<Message>> {
+    pub fn next(&mut self) -> Result<Option<Message>, Error> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -174,7 +172,7 @@ impl Drop for NetlinkDiag {
     }
 }
 
-fn extract_diag_msg(buf: &[u8]) -> Result<Message> {
+fn extract_diag_msg(buf: &[u8]) -> Result<Message, Error> {
     let main_len = mem::size_of::<InetDiagMsg>();
     ensure!(
         buf.len() >= main_len,
@@ -185,7 +183,7 @@ fn extract_diag_msg(buf: &[u8]) -> Result<Message> {
     Ok(Message::InetDiag(InetDiag { msg, tcp }))
 }
 
-fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>> {
+fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>, Error> {
     let mut remain = buf;
     const HEADER_LEN: usize = mem::size_of::<RtAttrHeader>();
     while remain.len() >= HEADER_LEN {

@@ -5,6 +5,9 @@ use std::net::Ipv6Addr;
 use std::num::ParseIntError;
 use std::result::Result as StdResult;
 
+use failure;
+use failure::Error;
+use failure::Fail;
 use nom::multispace;
 use nom::multispace0;
 use nom::types::CompleteStr;
@@ -12,7 +15,6 @@ use nom::Context;
 use nom::Err;
 use nom::ErrorKind as NomKind;
 
-use errors::*;
 use expr::AddrFilter;
 use expr::AddrMaskPort;
 use expr::Expression;
@@ -311,7 +313,7 @@ named!(ands<CompleteStr, Expression>, add_return_error!(ErrorKind::Custom(74),
         ( Expression::AllOf(list) )
 )));
 
-pub fn parse(input: &str) -> Result<Expression> {
+pub fn parse(input: &str) -> Result<Expression, Error> {
     match root(CompleteStr(input)) {
         Ok((CompleteStr(""), expr)) => Ok(expr),
         Ok((tail, val)) => bail!(
@@ -328,18 +330,15 @@ pub fn parse(input: &str) -> Result<Expression> {
 fn translate_nom_error(input: &str, e: Context<CompleteStr, u32>, problem: &str) -> Error {
     let mut v = super::nom_util::prepare_errors(input, e);
     v.reverse();
-    let mut problem = ErrorKind::Msg(problem.to_string()).into();
+    let mut problem = failure::Context::new(problem.to_string());
     for (kind, start, end) in v {
-        problem = Error::with_chain(
-            problem,
-            format!(
-                "failed to parse {}, near ... {} ...",
-                translate(kind),
-                &input[start..end]
-            ),
-        );
+        problem = problem.context(format!(
+            "failed to parse {}, near ... {} ...",
+            translate(kind),
+            &input[start..end]
+        ));
     }
-    problem
+    problem.into()
 }
 
 fn translate(kind: NomKind) -> String {
