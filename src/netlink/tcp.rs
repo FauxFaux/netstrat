@@ -111,12 +111,12 @@ impl State {
 
 impl States {
     /*
-    ss shorthands:
-sync established|syn-recv|         fin-wait-*|       time-wait|close-wait|last-ack|       closing
-conn established|syn-sent|syn-recv|fin-wait-*|       time-wait|close-wait|last-ack|       closing
-buck             syn-recv|                           time-wait
-big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-ack|listen|closing
-    */
+        ss shorthands:
+    sync established|syn-recv|         fin-wait-*|       time-wait|close-wait|last-ack|       closing
+    conn established|syn-sent|syn-recv|fin-wait-*|       time-wait|close-wait|last-ack|       closing
+    buck             syn-recv|                           time-wait
+    big  established|syn-sent|         fin-wait-*|closed|          close-wait|last-ack|listen|closing
+        */
 
     pub fn synchronised() -> States {
         States::ESTABLISHED

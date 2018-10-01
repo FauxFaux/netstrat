@@ -82,7 +82,8 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap)> {
                 let start = buf
                     .iter()
                     .position(|&c| b'(' == c)
-                    .ok_or("invalid stat: (")? + 1;
+                    .ok_or("invalid stat: (")?
+                    + 1;
                 let end = buf
                     .iter()
                     .skip(start)

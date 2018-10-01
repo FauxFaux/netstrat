@@ -91,54 +91,72 @@ fn run() -> Result<()> {
         // 4/6: show only this family (default: all?)
         // t/S[ctp]/u/d[ccp]/[ra]w/[uni]x/U[dplite]: show only this type, default all
         // H: no header
-        .arg(Arg::with_name("resolve")
-            .long("resolve")
-            .short("r")
-            .help("lookup names, ports and users"))
-        .arg(Arg::with_name("numeric")
-            .long("numeric")
-            .short("n")
-            .help("don't lookup names, ports or users"))
-        .arg(Arg::with_name("programs")
-            .long("programs")
-            .short("p")
-            .help("lookup owning process pid")
+        .arg(
+            Arg::with_name("resolve")
+                .long("resolve")
+                .short("r")
+                .help("lookup names, ports and users"),
+        )
+        .arg(
+            Arg::with_name("numeric")
+                .long("numeric")
+                .short("n")
+                .help("don't lookup names, ports or users"),
+        )
+        .arg(
+            Arg::with_name("programs")
+                .long("programs")
+                .short("p")
+                .help("lookup owning process pid"),
         )
         // ---
-        .arg(Arg::with_name("all")
-            .short("a")
-            .help("enable all supported types and perform no filtering (currently a noop)"))
-        .arg(Arg::with_name("connected")
-            .short("c")
-            .help("start with a filter of 'state connected'"))
-        .arg(Arg::with_name("listening")
-            .short("l")
-            .help("start with a filter of 'state listening'"))
+        .arg(
+            Arg::with_name("all")
+                .short("a")
+                .help("enable all supported types and perform no filtering (currently a noop)"),
+        )
+        .arg(
+            Arg::with_name("connected")
+                .short("c")
+                .help("start with a filter of 'state connected'"),
+        )
+        .arg(
+            Arg::with_name("listening")
+                .short("l")
+                .help("start with a filter of 'state listening'"),
+        )
         // ---
-        .arg(Arg::with_name("family")
-            .long("family")
-            .short("f")
-            .takes_value(true)
-            .possible_values(&["inet", "inet6"])
-            .multiple(true)
-            .require_delimiter(true)
-            .help("only include these families")
-            )
-        .arg(Arg::with_name("4")
-            .short("4")
-            .help("short for '--family=inet'"))
-        .arg(Arg::with_name("6")
-            .short("6")
-            .help("short for '--family=inet6'"))
+        .arg(
+            Arg::with_name("family")
+                .long("family")
+                .short("f")
+                .takes_value(true)
+                .possible_values(&["inet", "inet6"])
+                .multiple(true)
+                .require_delimiter(true)
+                .help("only include these families"),
+        )
+        .arg(
+            Arg::with_name("4")
+                .short("4")
+                .help("short for '--family=inet'"),
+        )
+        .arg(
+            Arg::with_name("6")
+                .short("6")
+                .help("short for '--family=inet6'"),
+        )
         // ---
-        .arg(Arg::with_name("filter")
-            .help("filter expression"))
+        .arg(Arg::with_name("filter").help("filter expression"))
         // ---
-        .arg(Arg::with_name("no-header")
-            .long("no-header")
-            .short("H")
-            .help("don't emit header row"))
-        .after_help(r"FILTER:
+        .arg(
+            Arg::with_name("no-header")
+                .long("no-header")
+                .short("H")
+                .help("don't emit header row"),
+        )
+        .after_help(
+            r"FILTER:
     state {all|connected|synchronised|bucket|big|...}
     {either|src|dest} {=|neq|<|≥} [ADDR][/MASK][:PORT]
     pid NUMBER
@@ -151,7 +169,8 @@ DEFAULTS:
     --family inet,inet6
     --proto  tcp,udp
 
-Defaults are used if no overriding argument of that group is provided.")
+Defaults are used if no overriding argument of that group is provided.",
+        )
         .get_matches();
 
     let expression = if let Some(filter) = matches.value_of("filter") {

@@ -94,17 +94,21 @@ impl AddrMaskPort {
         };
 
         match filter {
-            IpAddr::V4(filter) => if let IpAddr::V4(msg) = msg {
-                let mask: u32 = !((1 << (32 - mask)) - 1);
-                u32::from(msg) & mask == u32::from(filter) & mask
-            } else {
-                false
-            },
-            IpAddr::V6(_filter) => if let IpAddr::V6(_msg) = msg {
-                unimplemented!("v6 with mask")
-            } else {
-                false
-            },
+            IpAddr::V4(filter) => {
+                if let IpAddr::V4(msg) = msg {
+                    let mask: u32 = !((1 << (32 - mask)) - 1);
+                    u32::from(msg) & mask == u32::from(filter) & mask
+                } else {
+                    false
+                }
+            }
+            IpAddr::V6(_filter) => {
+                if let IpAddr::V6(_msg) = msg {
+                    unimplemented!("v6 with mask")
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -184,16 +188,20 @@ impl Expression {
         };
 
         let run = match run {
-            AllOf(list) => if 1 == list.len() {
-                list.into_iter().next().unwrap()
-            } else {
-                AllOf(list)
-            },
-            AnyOf(list) => if 1 == list.len() {
-                list.into_iter().next().unwrap()
-            } else {
-                AnyOf(list)
-            },
+            AllOf(list) => {
+                if 1 == list.len() {
+                    list.into_iter().next().unwrap()
+                } else {
+                    AllOf(list)
+                }
+            }
+            AnyOf(list) => {
+                if 1 == list.len() {
+                    list.into_iter().next().unwrap()
+                } else {
+                    AnyOf(list)
+                }
+            }
             other => other,
         };
 
