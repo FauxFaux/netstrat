@@ -128,9 +128,9 @@ impl Recv {
     }
 
     #[inline]
-    fn header(&self) -> &NetlinkMessageHeader {
+    fn header(&self) -> NetlinkMessageHeader {
         assert!(self.remaining() >= NETLINK_HEADER_LEN);
-        unsafe { &*(self.buf[self.ptr..].as_ptr() as *const _) }
+        transmute_obj(&self.buf[self.ptr..])
     }
 
     pub fn next(&mut self) -> Result<Option<Message>, Error> {
@@ -142,11 +142,11 @@ impl Recv {
 
             const NLMSG_INET_DIAG: c_int = 20;
 
-            let nl_header = *self.header();
+            let nl_header = self.header();
             let netlink_msg = &self.buf[self.ptr..self.ptr + usize(nl_header.len)];
             let netlink_data = &netlink_msg[NETLINK_HEADER_LEN..];
 
-            let ret = match nl_header.message_type as c_int {
+            let ret = match c_int::from(nl_header.message_type) {
                 libc::NLMSG_DONE => return Ok(None),
                 libc::NLMSG_ERROR => bail!("netlink error"),
                 libc::NLMSG_OVERRUN => bail!("netlink overrun"),
@@ -178,7 +178,7 @@ fn extract_diag_msg(buf: &[u8]) -> Result<Message, Error> {
         buf.len() >= main_len,
         "not enough space in buf for an InetDiagMsg"
     );
-    let msg = unsafe { *(buf.as_ptr() as *const _) };
+    let msg = transmute_obj(buf);
     let tcp = extract_rta(&buf[main_len..])?;
     Ok(Message::InetDiag(InetDiag { msg, tcp }))
 }
@@ -187,7 +187,7 @@ fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>, Error> {
     let mut remain = buf;
     const HEADER_LEN: usize = mem::size_of::<RtAttrHeader>();
     while remain.len() >= HEADER_LEN {
-        let header: RtAttrHeader = unsafe { *(remain.as_ptr() as *const _) };
+        let header: RtAttrHeader = transmute_obj(remain);
         let claimed_len = usize(header.len).expect("positive length");
         ensure!(claimed_len >= 2, "rta header with invalid len");
         ensure!(
@@ -199,7 +199,7 @@ fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>, Error> {
         use netlink::diag::RtaMessageType;
         use netlink::diag::RtaMessageType::*;
         match RtaMessageType::from_short(header.message_type) {
-            Some(Info) => return Ok(Some(extract_tcp_info(&remain[HEADER_LEN..claimed_len]))),
+            Some(Info) => return Ok(Some(transmute_obj(&remain[HEADER_LEN..claimed_len]))),
             _other => (), // println!("unexpected msg type: {:?}", other),
         }
         remain = &remain[netlink_msg_align(claimed_len)..];
@@ -208,9 +208,11 @@ fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>, Error> {
     Ok(None)
 }
 
-fn extract_tcp_info(buf: &[u8]) -> TcpInfo {
-    assert!(buf.len() >= mem::size_of::<TcpInfo>());
-    unsafe { *(buf.as_ptr() as *const _) }
+fn transmute_obj<T: Copy>(buf: &[u8]) -> T {
+    assert!(buf.len() >= mem::size_of::<T>());
+    let (prefix, data, _suffix) = unsafe { buf.align_to::<T>() };
+    assert!(prefix.is_empty(), "alignment issue");
+    data[0]
 }
 
 #[repr(C)]

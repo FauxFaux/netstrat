@@ -57,7 +57,7 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap), Error> {
             let inode = match fd_entry.path().read_link() {
                 Ok(dest) => {
                     let dest = dest.to_string_lossy();
-                    if !dest.starts_with("socket:[") || !dest.ends_with("]") {
+                    if !dest.starts_with("socket:[") || !dest.ends_with(']') {
                         // not a socket, ignore
                         continue;
                     }
@@ -90,9 +90,7 @@ pub fn walk<P: AsRef<Path>>(root: P) -> Result<(bool, PidMap), Error> {
                     .position(|&c| b')' == c)
                     .ok_or_else(|| format_err!("invalid stat: )"))?;
                 let mut name_buf = [0u8; 16];
-                for i in start..(start + end) {
-                    name_buf[i - start] = buf[i];
-                }
+                name_buf[..end].clone_from_slice(&buf[start..(start + end)]);
                 name = Some(name_buf);
             }
 

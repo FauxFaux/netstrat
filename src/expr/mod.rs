@@ -54,17 +54,17 @@ pub enum Expression {
 }
 
 impl Op {
-    fn apply_u16(&self, left: u16, right: u16) -> bool {
+    fn apply_u16(self, left: u16, right: u16) -> bool {
         use self::Op::*;
-        match *self {
+        match self {
             Eq => left == right,
             other => unimplemented!("op: {:?}", other),
         }
     }
 
-    fn apply_addr(&self, left: IpAddr, left_port: u16, right: AddrMaskPort) -> bool {
+    fn apply_addr(self, left: IpAddr, left_port: u16, right: AddrMaskPort) -> bool {
         use self::Op::*;
-        match *self {
+        match self {
             Eq => {
                 right.matches_addr(left)
                     && (right.port.is_none() || left_port == right.port.unwrap())
@@ -187,7 +187,7 @@ impl Expression {
             other => other,
         };
 
-        let run = match run {
+        match run {
             AllOf(list) => {
                 if 1 == list.len() {
                     list.into_iter().next().unwrap()
@@ -203,9 +203,7 @@ impl Expression {
                 }
             }
             other => other,
-        };
-
-        run
+        }
     }
 }
 

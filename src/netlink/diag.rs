@@ -120,7 +120,7 @@ impl RtaMessageType {
 }
 
 fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr, Error> {
-    Ok(match family as c_int {
+    Ok(match c_int::from(family) {
         AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(data[0]))),
         AF_INET6 => {
             let mut buf = unsafe { mem::transmute::<[u32; 4], [u8; 16]>(*data) };

@@ -89,10 +89,10 @@ impl State {
         }
     }
 
-    pub fn abbr(&self) -> &'static str {
+    pub fn abbr(self) -> &'static str {
         use self::State::*;
         #[cfg_attr(rustfmt, rustfmt_skip)]
-        match *self {
+        match self {
             Established => "ESTABL",
             SynSent     => "SYNSNT",
             SynRecv     => "SYNRCV",
@@ -148,18 +148,12 @@ impl States {
             | States::CLOSING
     }
 
-    pub fn matches(&self, msg: &InetDiag) -> bool {
+    pub fn matches(self, msg: &InetDiag) -> bool {
         if let Some(state) = msg.msg.state() {
             self.contains(States::from_bits_truncate(1 << state as usize))
         } else {
             // TODO: not valid?
             true
         }
-    }
-}
-
-impl TcpInfo {
-    pub fn state(&self) -> Option<State> {
-        State::from_u8(self.state)
     }
 }
