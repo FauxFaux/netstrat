@@ -20,7 +20,6 @@ use netlink::diag::InetDiagMsg;
 use netlink::diag::InetDiagReqV2;
 use netlink::netlink_consts::*;
 use netlink::tcp::TcpInfo;
-use netlink::Message;
 
 const SOCK_DIAG_BY_FAMILY: u16 = 20;
 
@@ -133,7 +132,7 @@ impl Recv {
         transmute_obj(&self.buf[self.ptr..])
     }
 
-    pub fn next(&mut self) -> Result<Option<Message>, Error> {
+    pub fn next(&mut self) -> Result<Option<InetDiag>, Error> {
         loop {
             if !self.ok() {
                 self.recv()?;
@@ -172,7 +171,7 @@ impl Drop for NetlinkDiag {
     }
 }
 
-fn extract_diag_msg(buf: &[u8]) -> Result<Message, Error> {
+fn extract_diag_msg(buf: &[u8]) -> Result<InetDiag, Error> {
     let main_len = mem::size_of::<InetDiagMsg>();
     ensure!(
         buf.len() >= main_len,
@@ -180,7 +179,7 @@ fn extract_diag_msg(buf: &[u8]) -> Result<Message, Error> {
     );
     let msg = transmute_obj(buf);
     let tcp = extract_rta(&buf[main_len..])?;
-    Ok(Message::InetDiag(InetDiag { msg, tcp }))
+    Ok(InetDiag { msg, tcp })
 }
 
 fn extract_rta(buf: &[u8]) -> Result<Option<TcpInfo>, Error> {

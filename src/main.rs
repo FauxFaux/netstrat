@@ -24,7 +24,6 @@ mod netlink;
 mod pid_map;
 
 use netlink::tcp::State;
-use netlink::Message;
 use pid_map::PidMap;
 
 // Oh, how I wish to punish those ipv4 users.
@@ -241,18 +240,13 @@ Defaults are used if no overriding argument of that group is provided.",
         for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
-            while let Some(ptr) = recv.next()? {
-                match ptr {
-                    Message::InetDiag(ref msg) => {
-                        let include = if let Some(ref expr) = expression {
-                            expr.matches(msg, pid_map)
-                        } else {
-                            true
-                        };
-                        if include {
-                            dump_proto(proto, msg, pid_map)?
-                        }
-                    }
+            while let Some(ref msg) = recv.next()? {
+                if expression
+                    .as_ref()
+                    .map(|expr| expr.matches(msg, pid_map))
+                    .unwrap_or(true)
+                {
+                    dump_proto(proto, msg, pid_map)?
                 }
             }
         }
