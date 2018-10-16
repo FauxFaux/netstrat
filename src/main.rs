@@ -23,6 +23,7 @@ mod expr;
 mod netlink;
 mod pid_map;
 
+use expr::Expression;
 use netlink::tcp::State;
 use pid_map::PidMap;
 
@@ -173,13 +174,11 @@ Defaults are used if no overriding argument of that group is provided.",
         .get_matches();
 
     let expression = if let Some(filter) = matches.value_of("filter") {
-        Some(
-            expr::parse(filter)
-                .with_context(|_| format_err!("interpreting filter expression"))?
-                .simplify(),
-        )
+        expr::parse(filter)
+            .with_context(|_| format_err!("interpreting filter expression"))?
+            .simplify()
     } else {
-        None
+        Expression::Yes
     };
 
     let pid_map = if matches.is_present("programs") {
@@ -241,12 +240,8 @@ Defaults are used if no overriding argument of that group is provided.",
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ref msg) = recv.next()? {
-                if expression
-                    .as_ref()
-                    .map(|expr| expr.matches(msg, pid_map))
-                    .unwrap_or(true)
-                {
-                    dump_proto(proto, msg, pid_map)?
+                if expression.matches(msg, pid_map) {
+                    dump_proto(proto, msg, pid_map)?;
                 }
             }
         }

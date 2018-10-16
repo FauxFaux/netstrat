@@ -51,6 +51,7 @@ pub enum Expression {
     AllOf(Vec<Expression>),
     AnyOf(Vec<Expression>),
     Not(Box<Expression>),
+    Yes,
 }
 
 impl Op {
@@ -175,6 +176,7 @@ impl Expression {
             AllOf(ref list) => list.iter().all(|x| x.matches(addr, pid_map)),
             AnyOf(ref list) => list.iter().any(|x| x.matches(addr, pid_map)),
             Not(ref expr) => !expr.matches(addr, pid_map),
+            Yes => true,
         }
     }
 
@@ -188,7 +190,9 @@ impl Expression {
         };
 
         match run {
-            AllOf(list) => {
+            AllOf(mut list) => {
+                list.retain(|x| Expression::Yes != *x);
+
                 if 1 == list.len() {
                     list.into_iter().next().unwrap()
                 } else {
@@ -199,7 +203,11 @@ impl Expression {
                 if 1 == list.len() {
                     list.into_iter().next().unwrap()
                 } else {
-                    AnyOf(list)
+                    if list.contains(&Expression::Yes) {
+                        Expression::Yes
+                    } else {
+                        AnyOf(list)
+                    }
                 }
             }
             other => other,
@@ -221,6 +229,7 @@ impl fmt::Debug for Expression {
             AllOf(ref list) => write_list(f, list, " and "),
             AnyOf(ref list) => write_list(f, list, " or "),
             Not(ref expr) => write!(f, "not {:?}", expr),
+            Yes => write!(f, "always"),
         }
     }
 }
