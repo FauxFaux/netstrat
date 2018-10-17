@@ -116,6 +116,7 @@ fn main() -> Result<(), Error> {
                 .short("n")
                 .help("don't lookup names, ports or users"),
         )
+        .group(clap::ArgGroup::with_name("should-resolve").args(&["resolve", "numeric"]))
         .arg(
             Arg::with_name("programs")
                 .long("programs")
@@ -241,6 +242,7 @@ Defaults are used if no overriding argument of that group is provided.",
 
     let narrow = matches.is_present("narrow");
     let no_header = !matches.is_present("no-header");
+    let resolve = matches.is_present("resolve");
 
     if !narrow && no_header {
         print!(concat!(
@@ -281,13 +283,13 @@ Defaults are used if no overriding argument of that group is provided.",
                 disp_addr(
                     &mut stdout,
                     MAX_EXPECTED_ADDR_LENGTH,
-                    &diag.msg.src_addr_str()?,
+                    &silent_to_name(resolve, &diag.msg.src_addr()?, diag.msg.src_port()),
                     diag.msg.src_port(),
                 )?;
                 disp_addr(
                     &mut stdout,
                     MAX_EXPECTED_ADDR_LENGTH,
-                    &diag.msg.dst_addr_str()?,
+                    &silent_to_name(resolve, &diag.msg.dst_addr()?, diag.msg.dst_port()),
                     diag.msg.dst_port(),
                 )?;
                 disp_user_proc(&mut stdout, &diag, pid_map)?;
@@ -303,8 +305,8 @@ Defaults are used if no overriding argument of that group is provided.",
                 Ok((
                     proto,
                     diag,
-                    silent_to_name(&diag.msg.src_addr()?, diag.msg.src_port()),
-                    silent_to_name(&diag.msg.dst_addr()?, diag.msg.dst_port()),
+                    silent_to_name(resolve, &diag.msg.src_addr()?, diag.msg.src_port()),
+                    silent_to_name(resolve, &diag.msg.dst_addr()?, diag.msg.dst_port()),
                 ))
             })
             .collect::<Result<_, Error>>()?;
@@ -360,7 +362,10 @@ Defaults are used if no overriding argument of that group is provided.",
     Ok(())
 }
 
-fn silent_to_name(addr: &IpAddr, port: u16) -> String {
+fn silent_to_name(resolve: bool, addr: &IpAddr, port: u16) -> String {
+    if !resolve {
+        return render_address(&addr);
+    }
     match dns_lookup::getnameinfo(&(*addr, port).into(), libc::NI_NAMEREQD | libc::NI_NOFQDN) {
         Ok((name, _)) => name,
         Err(_) => render_address(&addr),
