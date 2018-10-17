@@ -13,6 +13,7 @@ use nix::sys::socket::AddressFamily;
 
 use netlink::tcp::State;
 use netlink::tcp::TcpInfo;
+use render_address;
 
 #[repr(C)]
 #[derive(Copy, Clone, Default, Debug)]
@@ -100,8 +101,16 @@ impl InetDiagMsg {
         to_address(self.family, &self.id.src_be)
     }
 
+    pub fn src_addr_str(&self) -> Result<String, Error> {
+        Ok(render_address(&self.src_addr()?))
+    }
+
     pub fn dst_addr(&self) -> Result<IpAddr, Error> {
         to_address(self.family, &self.id.dst_be)
+    }
+
+    pub fn dst_addr_str(&self) -> Result<String, Error> {
+        Ok(render_address(&self.dst_addr()?))
     }
 
     pub fn state(&self) -> Option<State> {

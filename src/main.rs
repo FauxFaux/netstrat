@@ -39,9 +39,12 @@ fn dump_proto(
     proto: SockProtocol,
     msg: &netlink::InetDiag,
     map: Option<&PidMap>,
+    (src_width, dst_width): (usize, usize),
+    src_addr: &str,
+    dst_addr: &str,
 ) -> Result<(), Error> {
     print!(
-        "{}{} {:6} {:6} {:6} {:>41}:{:<5} {:>41}:{:<5} {:5}",
+        "{}{} {:6} {:6} {:6} {:>src_width$}:{:<5} {:>dst_width$}:{:<5} {:5}",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
@@ -59,11 +62,13 @@ fn dump_proto(
             .unwrap_or(""),
         msg.msg.rqueue,
         msg.msg.wqueue,
-        render_address(&msg.msg.src_addr()?),
+        src_addr,
         msg.msg.src_port(),
-        render_address(&msg.msg.dst_addr()?),
+        dst_addr,
         msg.msg.dst_port(),
         msg.msg.uid,
+        src_width = src_width,
+        dst_width = dst_width,
     );
 
     if let Some(map) = map {
@@ -108,6 +113,12 @@ fn main() -> Result<(), Error> {
                 .long("programs")
                 .short("p")
                 .help("lookup owning process pid"),
+        )
+        .arg(
+            Arg::with_name("narrow")
+                .long("narrow")
+                .short("W")
+                .help("use narrow output (blocks until data is complete)"),
         )
         // ---
         .arg(
@@ -220,7 +231,10 @@ Defaults are used if no overriding argument of that group is provided.",
     families.sort_unstable_by_key(|&x| x as i32);
     let families = families;
 
-    if !matches.is_present("no-header") {
+    let narrow = matches.is_present("narrow");
+    let no_header = !matches.is_present("no-header");
+
+    if !narrow && no_header {
         print!(concat!(
             "prot state  recv-q send-q ",
             "                           source address:port",
@@ -234,6 +248,7 @@ Defaults are used if no overriding argument of that group is provided.",
         println!();
     }
 
+    let mut entries = Vec::with_capacity(64);
     let mut socket = netlink::NetlinkDiag::new()?;
     for family in families {
         for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
@@ -241,9 +256,56 @@ Defaults are used if no overriding argument of that group is provided.",
             let mut recv = socket.receive_until_done()?;
             while let Some(ref msg) = recv.next()? {
                 if expression.matches(msg, pid_map) {
-                    dump_proto(proto, msg, pid_map)?;
+                    if narrow {
+                        entries.push((proto, *msg));
+                    } else {
+                        dump_proto(
+                            proto,
+                            msg,
+                            pid_map,
+                            (41, 41),
+                            &msg.msg.src_addr_str()?,
+                            &msg.msg.dst_addr_str()?,
+                        )?;
+                    }
                 }
             }
+        }
+    }
+
+    if narrow && !entries.is_empty() {
+        let entries = entries
+            .into_iter()
+            .map(|(proto, msg)| -> Result<_, Error> {
+                Ok((
+                    proto,
+                    msg,
+                    render_address(&msg.msg.src_addr()?),
+                    render_address(&msg.msg.dst_addr()?),
+                ))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        let max_src_len = entries
+            .iter()
+            .map(|(_, _, src, _dst)| src.len())
+            .max()
+            .expect("!is_empty");
+        let max_dst_len = entries
+            .iter()
+            .map(|(_, _, _src, dst)| dst.len())
+            .max()
+            .expect("!is_empty");
+
+        for (proto, diag, src_addr, dst_addr) in entries {
+            dump_proto(
+                proto,
+                &diag,
+                pid_map,
+                (max_src_len, max_dst_len),
+                &src_addr,
+                &dst_addr,
+            )?;
         }
     }
     Ok(())
