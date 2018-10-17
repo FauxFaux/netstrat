@@ -126,7 +126,7 @@ fn main() -> Result<(), Error> {
             Arg::with_name("narrow")
                 .long("narrow")
                 .short("W")
-                .help("use narrow output (blocks until data is complete)"),
+                .help("use narrow output (blocks; implies sort, --resolve, -H)"),
         )
         // ---
         .arg(
@@ -297,7 +297,7 @@ Defaults are used if no overriding argument of that group is provided.",
     }
 
     if narrow && !entries.is_empty() {
-        let entries = entries
+        let mut entries: Vec<(SockProtocol, InetDiag, String, String)> = entries
             .into_par_iter()
             .map(|(proto, diag)| -> Result<_, Error> {
                 Ok((
@@ -307,7 +307,7 @@ Defaults are used if no overriding argument of that group is provided.",
                     silent_to_name(&diag.msg.dst_addr()?, diag.msg.dst_port()),
                 ))
             })
-            .collect::<Result<Vec<_>, Error>>()?;
+            .collect::<Result<_, Error>>()?;
 
         let max_src_len = entries
             .iter()
@@ -319,6 +319,32 @@ Defaults are used if no overriding argument of that group is provided.",
             .map(|(_, _, _src, dst)| dst.len())
             .max()
             .expect("!is_empty");
+
+        entries.sort_unstable_by(|(lp, ld, lsrc, ldst), (rp, rd, rsrc, rdst)| {
+            fn proto_order(proto: &SockProtocol) -> u8 {
+                match proto {
+                    SockProtocol::Tcp => 0,
+                    SockProtocol::Udp => 1,
+                }
+            }
+
+            fn state_order(state: Option<State>) -> u8 {
+                match state {
+                    Some(State::Listen) => 0,
+                    Some(State::Established) => 1,
+                    Some(_other_state) => 2,
+                    None => 3,
+                }
+            }
+
+            proto_order(lp)
+                .cmp(&proto_order(rp))
+                .then(state_order(ld.msg.state()).cmp(&state_order(rd.msg.state())))
+                .then(ld.msg.dst_port().cmp(&rd.msg.dst_port()))
+                .then(ld.msg.src_port().cmp(&rd.msg.src_port()))
+                .then(lsrc.cmp(rsrc))
+                .then(ldst.cmp(rdst))
+        });
 
         for (proto, diag, src_addr, dst_addr) in entries {
             let stdout = io::stdout();
