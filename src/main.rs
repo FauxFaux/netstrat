@@ -248,6 +248,8 @@ Defaults are used if no overriding argument of that group is provided.",
         println!();
     }
 
+    const MAX_EXPECTED_ADDR_LENGTH: usize = 41;
+
     let mut entries = Vec::with_capacity(64);
     let mut socket = netlink::NetlinkDiag::new()?;
     for family in families {
@@ -263,7 +265,7 @@ Defaults are used if no overriding argument of that group is provided.",
                             proto,
                             msg,
                             pid_map,
-                            (41, 41),
+                            (MAX_EXPECTED_ADDR_LENGTH, MAX_EXPECTED_ADDR_LENGTH),
                             &msg.msg.src_addr_str()?,
                             &msg.msg.dst_addr_str()?,
                         )?;
