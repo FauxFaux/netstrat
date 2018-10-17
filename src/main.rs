@@ -8,6 +8,7 @@ extern crate libc;
 extern crate nix;
 #[macro_use]
 extern crate nom;
+extern crate rayon;
 
 use std::collections::HashSet;
 use std::io;
@@ -261,30 +262,33 @@ Defaults are used if no overriding argument of that group is provided.",
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
             while let Some(ref diag) = recv.next()? {
-                if expression.matches(diag, pid_map) {
-                    if narrow {
-                        entries.push((proto, *diag));
-                    } else {
-                        let stdout = io::stdout();
-                        let mut stdout = stdout.lock();
-                        disp_proto_state(&mut stdout, proto, &diag)?;
-                        disp_queues(&mut stdout, &diag)?;
-                        disp_addr(
-                            &mut stdout,
-                            MAX_EXPECTED_ADDR_LENGTH,
-                            &diag.msg.src_addr_str()?,
-                            diag.msg.src_port(),
-                        )?;
-                        disp_addr(
-                            &mut stdout,
-                            MAX_EXPECTED_ADDR_LENGTH,
-                            &diag.msg.dst_addr_str()?,
-                            diag.msg.dst_port(),
-                        )?;
-                        disp_user_proc(&mut stdout, &diag, pid_map)?;
-                        writeln!(stdout);
-                    }
+                if !expression.matches(diag, pid_map) {
+                    continue;
                 }
+
+                if narrow {
+                    entries.push((proto, *diag));
+                    continue;
+                }
+
+                let stdout = io::stdout();
+                let mut stdout = stdout.lock();
+                disp_proto_state(&mut stdout, proto, &diag)?;
+                disp_queues(&mut stdout, &diag)?;
+                disp_addr(
+                    &mut stdout,
+                    MAX_EXPECTED_ADDR_LENGTH,
+                    &diag.msg.src_addr_str()?,
+                    diag.msg.src_port(),
+                )?;
+                disp_addr(
+                    &mut stdout,
+                    MAX_EXPECTED_ADDR_LENGTH,
+                    &diag.msg.dst_addr_str()?,
+                    diag.msg.dst_port(),
+                )?;
+                disp_user_proc(&mut stdout, &diag, pid_map)?;
+                writeln!(stdout);
             }
         }
     }
