@@ -25,6 +25,7 @@ mod pid_map;
 
 use expr::Expression;
 use netlink::tcp::State;
+use netlink::InetDiag;
 use pid_map::PidMap;
 
 // Oh, how I wish to punish those ipv4 users.
@@ -35,50 +36,53 @@ fn render_address(addr: &IpAddr) -> String {
     }
 }
 
-fn dump_proto(
+fn disp_proto_state<W: Write>(
+    mut into: W,
     proto: SockProtocol,
-    msg: &netlink::InetDiag,
-    map: Option<&PidMap>,
-    (src_width, dst_width): (usize, usize),
-    src_addr: &str,
-    dst_addr: &str,
-) -> Result<(), Error> {
-    print!(
-        "{}{} {:6} {:6} {:6} {:>src_width$}:{:<5} {:>dst_width$}:{:<5} {:5}",
+    diag: &netlink::InetDiag,
+) -> Result<(), io::Error> {
+    write!(
+        into,
+        "{}{} {:6} ",
         match proto {
             SockProtocol::Tcp => "tcp",
             SockProtocol::Udp => "udp",
         },
-        match msg.msg.family() {
+        match diag.msg.family() {
             Some(AddressFamily::Inet) => "4".to_string(),
             Some(AddressFamily::Inet6) => "6".to_string(),
             other => format!("?? {:?}", other),
         },
-        msg.msg
+        diag.msg
             .state()
             // Don't display "CLOSED" for closed UDP sockets, as this also means "Listening".
             .filter(|&state| SockProtocol::Udp != proto || state != State::Closed)
             .map(|state| state.abbr())
-            .unwrap_or(""),
-        msg.msg.rqueue,
-        msg.msg.wqueue,
-        src_addr,
-        msg.msg.src_port(),
-        dst_addr,
-        msg.msg.dst_port(),
-        msg.msg.uid,
-        src_width = src_width,
-        dst_width = dst_width,
-    );
+            .unwrap_or("")
+    )
+}
 
-    if let Some(map) = map {
-        match map.get(&msg.msg.inode) {
-            Some(info) => print!(" {:>5}/{}", info.pid, info.process_name()),
-            None => print!("      -"),
+fn disp_queues<W: Write>(mut into: W, diag: &InetDiag) -> io::Result<()> {
+    write!(into, "{:6} {:6} ", diag.msg.rqueue, diag.msg.wqueue)
+}
+
+fn disp_addr<W: Write>(mut into: W, width: usize, addr: &str, port: u16) -> Result<(), io::Error> {
+    write!(into, "{:>width$}:{:<5} ", addr, port, width = width)
+}
+
+fn disp_user_proc<W: Write>(
+    mut into: W,
+    diag: &InetDiag,
+    pid_map: Option<&PidMap>,
+) -> io::Result<()> {
+    write!(into, "{:5} ", diag.msg.uid)?;
+
+    if let Some(pid_map) = pid_map {
+        match pid_map.get(&diag.msg.inode) {
+            Some(info) => write!(into, " {:>5}/{}", info.pid, info.process_name())?,
+            None => write!(into, "      -")?,
         }
     }
-
-    println!();
 
     Ok(())
 }
@@ -170,8 +174,8 @@ fn main() -> Result<(), Error> {
             r"FILTER:
     state {all|connected|synchronised|bucket|big|...}
     {either|src|dest} {=|neq|<|≥} [ADDR][/MASK][:PORT]
-    pid NUMBER
-    app SHORT-NAME
+    pid NUMBER     (TODO)
+    app SHORT-NAME (TODO)
     port PORT      (sugar for 'either = :PORT')
 
     EXPR and (EXPR || EXPR)
@@ -197,7 +201,7 @@ Defaults are used if no overriding argument of that group is provided.",
         if pid_failures {
             writeln!(
                 io::stderr(),
-                "Couldn't read some values from /proc, do you have permission?"
+                "warning: Couldn't read some values from /proc, do you have permission?"
             )?;
         }
         Some(pid_map)
@@ -256,19 +260,29 @@ Defaults are used if no overriding argument of that group is provided.",
         for &proto in &[SockProtocol::Tcp, SockProtocol::Udp] {
             socket.ask_ip(family, proto)?;
             let mut recv = socket.receive_until_done()?;
-            while let Some(ref msg) = recv.next()? {
-                if expression.matches(msg, pid_map) {
+            while let Some(ref diag) = recv.next()? {
+                if expression.matches(diag, pid_map) {
                     if narrow {
-                        entries.push((proto, *msg));
+                        entries.push((proto, *diag));
                     } else {
-                        dump_proto(
-                            proto,
-                            msg,
-                            pid_map,
-                            (MAX_EXPECTED_ADDR_LENGTH, MAX_EXPECTED_ADDR_LENGTH),
-                            &msg.msg.src_addr_str()?,
-                            &msg.msg.dst_addr_str()?,
+                        let stdout = io::stdout();
+                        let mut stdout = stdout.lock();
+                        disp_proto_state(&mut stdout, proto, &diag)?;
+                        disp_queues(&mut stdout, &diag)?;
+                        disp_addr(
+                            &mut stdout,
+                            MAX_EXPECTED_ADDR_LENGTH,
+                            &diag.msg.src_addr_str()?,
+                            diag.msg.src_port(),
                         )?;
+                        disp_addr(
+                            &mut stdout,
+                            MAX_EXPECTED_ADDR_LENGTH,
+                            &diag.msg.dst_addr_str()?,
+                            diag.msg.dst_port(),
+                        )?;
+                        disp_user_proc(&mut stdout, &diag, pid_map)?;
+                        writeln!(stdout);
                     }
                 }
             }
@@ -300,14 +314,14 @@ Defaults are used if no overriding argument of that group is provided.",
             .expect("!is_empty");
 
         for (proto, diag, src_addr, dst_addr) in entries {
-            dump_proto(
-                proto,
-                &diag,
-                pid_map,
-                (max_src_len, max_dst_len),
-                &src_addr,
-                &dst_addr,
-            )?;
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            disp_proto_state(&mut stdout, proto, &diag)?;
+            // *not* disp_queues
+            disp_addr(&mut stdout, max_src_len, &src_addr, diag.msg.src_port())?;
+            disp_addr(&mut stdout, max_dst_len, &dst_addr, diag.msg.dst_port())?;
+            disp_user_proc(&mut stdout, &diag, pid_map)?;
+            writeln!(stdout);
         }
     }
     Ok(())
