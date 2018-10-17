@@ -2,6 +2,7 @@
 extern crate bitflags;
 extern crate cast;
 extern crate clap;
+extern crate dns_lookup;
 #[macro_use]
 extern crate failure;
 extern crate libc;
@@ -19,6 +20,8 @@ use failure::Error;
 use failure::ResultExt;
 use nix::sys::socket::AddressFamily;
 use nix::sys::socket::SockProtocol;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 
 mod expr;
 mod netlink;
@@ -295,13 +298,13 @@ Defaults are used if no overriding argument of that group is provided.",
 
     if narrow && !entries.is_empty() {
         let entries = entries
-            .into_iter()
-            .map(|(proto, msg)| -> Result<_, Error> {
+            .into_par_iter()
+            .map(|(proto, diag)| -> Result<_, Error> {
                 Ok((
                     proto,
-                    msg,
-                    render_address(&msg.msg.src_addr()?),
-                    render_address(&msg.msg.dst_addr()?),
+                    diag,
+                    silent_to_name(&diag.msg.src_addr()?, diag.msg.src_port()),
+                    silent_to_name(&diag.msg.dst_addr()?, diag.msg.dst_port()),
                 ))
             })
             .collect::<Result<Vec<_>, Error>>()?;
@@ -329,4 +332,11 @@ Defaults are used if no overriding argument of that group is provided.",
         }
     }
     Ok(())
+}
+
+fn silent_to_name(addr: &IpAddr, port: u16) -> String {
+    match dns_lookup::getnameinfo(&(*addr, port).into(), libc::NI_NAMEREQD | libc::NI_NOFQDN) {
+        Ok((name, _)) => name,
+        Err(_) => render_address(&addr),
+    }
 }

@@ -7,6 +7,7 @@ authors = ["Chris West (Faux) <git@goeswhere.com>"]
 bitflags = "1"
 cast = "0.2"
 clap = "2"
+dns-lookup = "1"
 failure = "0.1"
 libc = "0.2"
 nix = "0.11"
