@@ -123,7 +123,7 @@ fn to_address(family: u8, data: &[u32; 4]) -> Result<IpAddr, Error> {
     Ok(match c_int::from(family) {
         AF_INET => IpAddr::V4(Ipv4Addr::from(u32::from_be(data[0]))),
         AF_INET6 => {
-            let mut buf = unsafe { mem::transmute::<[u32; 4], [u8; 16]>(*data) };
+            let buf = unsafe { mem::transmute::<[u32; 4], [u8; 16]>(*data) };
             IpAddr::V6(Ipv6Addr::from(buf))
         }
         other => bail!("unrecognised address family: {}", other),

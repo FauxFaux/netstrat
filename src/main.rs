@@ -293,7 +293,7 @@ Defaults are used if no overriding argument of that group is provided.",
                     diag.msg.dst_port(),
                 )?;
                 disp_user_proc(&mut stdout, &diag, pid_map)?;
-                writeln!(stdout);
+                writeln!(stdout)?;
             }
         }
     }
@@ -356,7 +356,7 @@ Defaults are used if no overriding argument of that group is provided.",
             disp_addr(&mut stdout, max_src_len, &src_addr, diag.msg.src_port())?;
             disp_addr(&mut stdout, max_dst_len, &dst_addr, diag.msg.dst_port())?;
             disp_user_proc(&mut stdout, &diag, pid_map)?;
-            writeln!(stdout);
+            writeln!(stdout)?;
         }
     }
     Ok(())

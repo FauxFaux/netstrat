@@ -116,7 +116,7 @@ fn hex_digit(input: char) -> bool {
 
 named!(port_number<CompleteStr, u16>,
     alt_complete!(
-        map_res!(take_while1_s!(digit), parse_u16) |
+        map_res!(take_while1!(digit), parse_u16) |
         tag!("*") => { |_| 0 }
 ));
 
@@ -124,9 +124,9 @@ named!(port<CompleteStr, u16>, preceded!(complete!(tag!(":")), port_number));
 
 // TODO: I'd love `do_parse!()` instead of this `map_res!` and helper nonsense,
 // TODO: but it doesn't seem to consume the input, and I don't get why.
-named!(octet<CompleteStr, u8>, map_res!(take_while1_s!(digit), parse_u8));
+named!(octet<CompleteStr, u8>, map_res!(take_while1!(digit), parse_u8));
 
-named!(quad<CompleteStr, u16>, map_res!(take_while1_s!(hex_digit), parse_quad));
+named!(quad<CompleteStr, u16>, map_res!(take_while1!(hex_digit), parse_quad));
 
 named!(mask<CompleteStr, u8>, preceded!(complete!(tag!("/")), octet));
 
