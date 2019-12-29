@@ -323,7 +323,7 @@ Defaults are used if no overriding argument of that group is provided.",
             .expect("!is_empty");
 
         entries.sort_unstable_by(|(lp, ld, lsrc, ldst), (rp, rd, rsrc, rdst)| {
-            fn proto_order(proto: &SockProtocol) -> u8 {
+            fn proto_order(proto: SockProtocol) -> u8 {
                 match proto {
                     SockProtocol::Tcp => 0,
                     SockProtocol::Udp => 1,
@@ -339,8 +339,8 @@ Defaults are used if no overriding argument of that group is provided.",
                 }
             }
 
-            proto_order(lp)
-                .cmp(&proto_order(rp))
+            proto_order(*lp)
+                .cmp(&proto_order(*rp))
                 .then(state_order(ld.msg.state()).cmp(&state_order(rd.msg.state())))
                 .then(ld.msg.dst_port().cmp(&rd.msg.dst_port()))
                 .then(ld.msg.src_port().cmp(&rd.msg.src_port()))

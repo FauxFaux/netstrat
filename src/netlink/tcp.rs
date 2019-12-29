@@ -89,9 +89,9 @@ impl State {
         }
     }
 
+    #[rustfmt::skip]
     pub fn abbr(self) -> &'static str {
         use self::State::*;
-        #[cfg_attr(rustfmt, rustfmt_skip)]
         match self {
             Established => "ESTABL",
             SynSent     => "SYNSNT",

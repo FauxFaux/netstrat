@@ -202,12 +202,10 @@ impl Expression {
             AnyOf(list) => {
                 if 1 == list.len() {
                     list.into_iter().next().unwrap()
+                } else if list.contains(&Expression::Yes) {
+                    Expression::Yes
                 } else {
-                    if list.contains(&Expression::Yes) {
-                        Expression::Yes
-                    } else {
-                        AnyOf(list)
-                    }
+                    AnyOf(list)
                 }
             }
             other => other,
