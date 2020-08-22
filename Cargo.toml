@@ -10,7 +10,7 @@ clap = "2"
 dns-lookup = "1"
 failure = "0.1"
 libc = "0.2"
-nix = "0.17"
+nix = "0.18"
 rayon = "1"
 
 [dependencies.nom]
